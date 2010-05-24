@@ -1,0 +1,5 @@
+ * Use File Storage
+ * QueryItem without next
+ * setup.py
+ * enhance tests
+ * docs
