@@ -53,7 +53,6 @@ def _get_image_registry(item):
 class QueryItem(object):
 	def __init__(self, operation=None):
 		self._previous = None
-		self._next = None
 		self._evaluated_image = None
 		self._name = None
 		self.operation = operation
@@ -63,57 +62,12 @@ class QueryItem(object):
 	def _set_previous(self, athor):
 		prev = self._previous
 		athor._previous = prev
-		if previous is not None:
-			previous._next = athor
 		self._previous = athor
-		athor._next = self
 	previous = property(_get_previous, _set_previous)
-
-	def _get_next(self):
-		return self._next
-	def _set_next(self, athor):
-		next = self._next
-		athor._next = next
-		if next is not None:
-			next._previous = athor
-		self._next = athor
-		athor._previous = self
-	next = property(_get_next, _set_next)
-
-	insert_before = _set_next
-	insert_after = _set_next
-
-	def append(self, athor):
-		item = self.get_last()
-		append_query = QueryItem(athor)
-		item.insert_after(append_query)
-		return append_query
-
+	
 	def __unicode__(self):
 		return u', '.join([unicode(x.operation) for x in self.iter_previous()])
-
-	def __iter__(self):
-		return self.iter_all()
 	
-	def iter_all(self):
-		'''
-		Iterates over all items.
-		'''
-		item = self.get_first()
-		yield item
-		while item._next is not None:
-			yield item._next
-			item = item._next
-
-	def iter_previous(self):
-		return self.iter_until(self)
-
-	def iter_until(self, item):
-		for x in self.iter_all():
-			yield x
-			if x is item:
-				break
-
 	def execute(self, image):
 		evaluated_image = _get_image_registry(self)
 		if evaluated_image is None:
@@ -124,14 +78,15 @@ class QueryItem(object):
 			evaluated_image = image
 			_set_image_registry(self, evaluated_image)
 		return evaluated_image
-
+	
 	def get_attrs(self):
 		attrs = {}
-		for x in self.iter_previous():
-			attrs.update(x.operation.attrs)
+		if self._previous is not None:
+			attrs.update(self._previous.get_attrs())
+		if self.operation is not None:
+			attrs.update(self.operation.attrs)
 		return attrs
-
-	# TODO: Look over this again (Gregor, could you prove it working?)
+	
 	def name(self, value=None):
 		import hashlib
 		if value:
@@ -155,18 +110,12 @@ class QueryItem(object):
 			return val.hexdigest()
 		else:
 			return None
-
+	
 	def get_first(self):
 		first = self
 		while first._previous is not None:
 			first = first._previous
 		return first
-
-	def get_last(self):
-		last = self
-		while last._next is not None:
-			last = last._next
-		return last
 
 
 class Operation(object):
@@ -589,7 +538,7 @@ class ImageQuery(object):
 			self.source = None
 		if query:
 			import copy
-			self.query = copy.copy(query.get_last())
+			self.query = copy.copy(query)
 		else:
 			self.query = QueryItem()
 		self.query.source = self.source
@@ -610,7 +559,7 @@ class ImageQuery(object):
 			return '%s.png' % name
 
 	def _name(self):
-		hashval = self.query.get_last().name()
+		hashval = self.query.name()
 		if hashval:
 			if not self.source or self.source.startswith('/'): # TODO: Support windows?
 				return os.path.join(IMAGE_CACHE_DIR, hashval, self._basename())
@@ -640,7 +589,7 @@ class ImageQuery(object):
 		return False
 
 	def _apply_operations(self, image):
-		image = self.query.get_last().execute(image)
+		image = self.query.execute(image)
 		return image
 
 	def _create_raw(self):
@@ -681,6 +630,12 @@ class ImageQuery(object):
 	def _evaluate(self):
 		if not self._exists():
 			self._create()
+	
+	def _append(self, query):
+		append_query = QueryItem(athor)
+		append_query._previous = self.query
+		self.query = append_query
+		return self
 
 	def __unicode__(self):
 		return self.url()
@@ -694,7 +649,7 @@ class ImageQuery(object):
 
 	def blank(self,x=None,y=None,color=None):
 		q = self._clone()
-		q.query = q.query.append(Blank(x,y,color))
+		q = q._append(Blank(x,y,color))
 		return q
 
 	def paste(self, image, x=0, y=0):
@@ -702,7 +657,7 @@ class ImageQuery(object):
 		Pastes the given image above the current one.
 		'''
 		q = self._clone()
-		q.query = q.query.append(Paste(image,x,y))
+		q = q._append(Paste(image,x,y))
 		return q
 
 	def background(self, image, x=0, y=0):
@@ -710,37 +665,37 @@ class ImageQuery(object):
 		Same as paste but puts the given image behind the current one.
 		'''
 		q = self._clone()
-		q.query = q.query.append(Background(image,x,y))
+		q = q._append(Background(image,x,y))
 		return q
 
 	def blend(self, image, alpha=0.5):
 		q = self._clone()
-		q.query = q.query.append(Blend(image,alpha))
+		q = q._append(Blend(image,alpha))
 		return q
 
 	def resize(self, x=None, y=None, filter=Image.ANTIALIAS):
 		q = self._clone()
-		q.query = q.query.append(Resize(x,y,filter))
+		q = q._append(Resize(x,y,filter))
 		return q
 
 	def scale(self, x, y, filter=Image.ANTIALIAS):
 		q = self._clone()
-		q.query = q.query.append(Scale(x,y,filter))
+		q = q._append(Scale(x,y,filter))
 		return q
 
 	def crop(self, x, y, w, h):
 		q = self._clone()
-		q.query = q.query.append(Crop(x,y,w,h))
+		q = q._append(Crop(x,y,w,h))
 		return q
 
 	def fit(self, x, y, centering=(0.5,0.5), method=Image.ANTIALIAS):
 		q = self._clone()
-		q.query = q.query.append(Fit(x,y,centering,method))
+		q = q._append(Fit(x,y,centering,method))
 		return q
 
 	def enhance(self, enhancer, factor):
 		q = self._clone()
-		q.query = q.query.append(Enhance(enhancer, factor))
+		q = q._append(Enhance(enhancer, factor))
 		return q
 
 	def sharpness(self, amount=2.0):
@@ -756,52 +711,52 @@ class ImageQuery(object):
 	def blur(self, amount=1):
 		#return self.sharpness(1-(amount-1))
 		q = self._clone()
-		q.query = q.query.append(Blur(amount))
+		q = q._append(Blur(amount))
 		return q
 
 	def filter(self, image_filter):
 		q = self._clone()
-		q.query = q.query.append(Filter(image_filter))
+		q = q._append(Filter(image_filter))
 		return q
 	
 	def truecolor(self):
 		q = self._clone()
-		q.query = q.query.append(Convert('RGBA'))
+		q = q._append(Convert('RGBA'))
 		return q
 
 	def invert(self, keep_alpha=True):
 		q = self._clone()
-		q.query = q.query.append(Invert(keep_alpha))
+		q = q._append(Invert(keep_alpha))
 		return q
 
 	def flip(self):
 		q = self._clone()
-		q.query = q.query.append(Flip())
+		q = q._append(Flip())
 		return q
 
 	def mirror(self):
 		q = self._clone()
-		q.query = q.query.append(Mirror())
+		q = q._append(Mirror())
 		return q
 
 	def grayscale(self):
 		q = self._clone()
-		q.query = q.query.append(Grayscale())
+		q = q._append(Grayscale())
 		return q
 
 	def alpha(self):
 		q = self._clone()
-		q.query = q.query.append(GetChannel('alpha'))
+		q = q._append(GetChannel('alpha'))
 		return q
 
 	def applyalpha(self, alphamap):
 		q = self._clone()
-		q.query = q.query.append(ApplyAlpha(alphamap))
+		q = q._append(ApplyAlpha(alphamap))
 		return q
 
 	def text(self, text, x, y, font, size=None, fill=None):
 		q = self._clone()
-		q.query = q.query.append(Text(text, x, y, font, size, fill))
+		q = q._append(Text(text, x, y, font, size, fill))
 		return q
 
 	@staticmethod
@@ -852,27 +807,27 @@ class ImageQuery(object):
 
 	def composite(self, image, mask):
 		q = self._clone()
-		q.query = q.query.append(Composite(image, mask))
+		q = q._append(Composite(image, mask))
 		return q
 
 	def offset(self, x, y):
 		q = self._clone()
-		q.query = q.query.append(Offset(x, y))
+		q = q._append(Offset(x, y))
 		return q
 
 	def padding(self, left, top=None, right=None, bottom=None, color=None):
 		q = self._clone()
-		q.query = q.query.append(Padding(left, top, right, bottom, color))
+		q = q._append(Padding(left, top, right, bottom, color))
 		return q
 
 	def opacity(self, opacity):
 		q = self._clone()
-		q.query = q.query.append(Opacity(opacity))
+		q = q._append(Opacity(opacity))
 		return q
 
 	def clip(self, start=None, end=None):
 		q = self._clone()
-		q.query = q.query.append(Clip(start, end))
+		q = q._append(Clip(start, end))
 		return q
 
 	def shadow(self, color):
@@ -891,7 +846,7 @@ class ImageQuery(object):
 
 	def query_name(self, value):
 		q = self._clone()
-		q.query = q.query.append(None)
+		q = q._append(None)
 		q.query.name(value)
 		return q
 
