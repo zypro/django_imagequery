@@ -65,8 +65,16 @@ class QueryItem(object):
 		self._previous = athor
 	previous = property(_get_previous, _set_previous)
 	
+	def __iter__(self):
+		items = [self]
+		item = self._previous
+		while not item is None:
+			items.append(item)
+			item = item._previous
+		return reversed(items)
+	
 	def __unicode__(self):
-		return u', '.join([unicode(x.operation) for x in self.iter_previous()])
+		return u', '.join([unicode(x.operation) for x in self])
 	
 	def execute(self, image):
 		evaluated_image = _get_image_registry(self)
@@ -630,10 +638,10 @@ class ImageQuery(object):
 		if not self._exists():
 			self._create()
 	
-	def _append(self, query):
-		append_query = QueryItem(athor)
-		append_query._previous = self.query
-		self.query = append_query
+	def _append(self, operation):
+		query = QueryItem(operation)
+		query._previous = self.query
+		self.query = query
 		return self
 
 	def __unicode__(self):
