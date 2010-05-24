@@ -1,9 +1,8 @@
+# -*- coding: utf-8 -*-
 import os
 from django.test import TestCase
 from django.conf import settings
 
-import imagequery
-import imagequery.query
 from imagequery.query import ImageQuery
 
 
