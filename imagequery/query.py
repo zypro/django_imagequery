@@ -432,7 +432,6 @@ class TextImage(Operation):
 		'fill': None,
 	}
 	def execute(self, image, query):
-		import ImageFont
 		font = get_font_object(self.font, self.size)
 		font.getmask(self.text)
 
