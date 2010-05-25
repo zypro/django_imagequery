@@ -69,11 +69,6 @@ class ImageQueryTest(TestCase):
 		self.assert_(self.compare(self.tmp('test3.jpg'), self.sample('results/lynx_resize_400_sharpness_-1.jpg')))
 		self.assert_(not self.compare(self.tmp('test.jpg'), self.tmp('test2.jpg')))
 
-		tux.makeshadow(15, 10, '#444444').save(self.tmp('test.png'))
-		self.assert_(self.compare(self.tmp('test.png'), self.sample('results/tux_shadow_15_10_444444.png')))
-		tux.makeshadow(15, 10, '#444444', 0.7, 2.5).save(self.tmp('test.png'))
-		self.assert_(self.compare(self.tmp('test.png'), self.sample('results/tux_shadow_15_10_444444_0.7_2.5.png')))
-
 		dj.text('Django ImageQuery', 'center', 10, self.sample('../samplefonts/Vera.ttf'), 20, '#000000').save(self.tmp('test.jpg'))
 		self.assert_(self.compare(self.tmp('test.jpg'), self.sample('results/django_colors_text_center_10.jpg')))
 
