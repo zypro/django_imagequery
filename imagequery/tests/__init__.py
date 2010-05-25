@@ -5,8 +5,7 @@ from django.test import TestCase
 from django.conf import settings
 from django.core.files.storage import FileSystemStorage
 from django.db import models
-
-from imagequery.query import ImageQuery
+from imagequery.query import ImageQuery, RawImageQuery, NewImageQuery
 
 
 class ImageModel(models.Model):
@@ -16,23 +15,21 @@ class ImageModel(models.Model):
         def __unicode__(self):
                 return self.name
 
-        @models.permalink
-        def get_absolute_url(self):
-                return '-detail', (self.slug,), {}
-
 
 class ImageQueryTest(TestCase):
 	def setUp(self):
-		self.sample_dir = os.path.join(os.path.dirname(__file__), 'sampleimages')
 		import tempfile
-		self.tmp_dir = tempfile.mkdtemp()
-		self.media_root = settings.MEDIA_ROOT
-		settings.MEDIA_ROOT = self.tmp_dir
-		self.tmpstorage_dir = tempfile.mkdtemp()
+		self.tmp_dir = os.path.join(settings.MEDIA_ROOT, 'test', 'imagequery')
+		self.sample_dir = os.path.join(self.tmp_dir, 'sampleimages')
+                self.font_dir = os.path.join(os.path.dirname(__file__), 'samplefonts')
+                shutil.copytree(
+                    os.path.join(os.path.dirname(__file__), 'sampleimages'),
+                    self.sample_dir)
+                self.tmpstorage_dir = tempfile.mkdtemp()
                 self.tmpstorage = FileSystemStorage(location=self.tmpstorage_dir)
 
-	def tearDown(self):
-		settings.MEDIA_ROOT = self.media_root
+        def tearDown(self):
+                shutil.rmtree(self.tmp_dir)
 
 	def sample(self, path):
 		return os.path.join(self.sample_dir, path)
@@ -53,12 +50,12 @@ class ImageQueryTest(TestCase):
 
         def test_load_open_image_file(self):
 		import Image
-		iq = ImageQuery(Image.open(self.sample('django_colors.jpg')))
+		iq = RawImageQuery(Image.open(self.sample('django_colors.jpg')))
 		iq.grayscale().save(self.tmp('test.jpg'))
 		self.assert_(self.compare(self.tmp('test.jpg'), self.sample('results/django_colors_gray.jpg')))
 
         def test_load_blank_image(self):
-		blank = ImageQuery(x=100,y=100,color=(250,200,150,100))
+		blank = NewImageQuery(x=100,y=100,color=(250,200,150,100))
 		blank.save(self.tmp('test.png'))
 		self.assert_(self.compare(self.tmp('test.png'), self.sample('results/blank_100x100_250,200,150,100.png')))
 
@@ -76,7 +73,7 @@ class ImageQueryTest(TestCase):
 		iq.grayscale().save('save.jpg')
 		self.assert_(self.compare(os.path.join(self.tmpstorage_dir, 'save.jpg'), self.sample('results/django_colors_gray.jpg')))
 
-	def testOperations(self):
+	def test_operations(self):
 		dj = ImageQuery(self.sample('django_colors.jpg'))
 		tux = ImageQuery(self.sample('tux_transparent.png'))
 		lynx = ImageQuery(self.sample('lynx_kitten.jpg'))
@@ -105,18 +102,18 @@ class ImageQueryTest(TestCase):
 		self.assert_(self.compare(self.tmp('test3.jpg'), self.sample('results/lynx_resize_400_sharpness_-1.jpg')))
 		self.assert_(not self.compare(self.tmp('test.jpg'), self.tmp('test2.jpg')))
 
-		dj.text('Django ImageQuery', 'center', 10, self.sample('../samplefonts/Vera.ttf'), 20, '#000000').save(self.tmp('test.jpg'))
+		dj.text('Django ImageQuery', 'center', 10, os.path.join(self.font_dir, 'Vera.ttf'), 20, '#000000').save(self.tmp('test.jpg'))
 		self.assert_(self.compare(self.tmp('test.jpg'), self.sample('results/django_colors_text_center_10.jpg')))
 
 		self.assertEqual(dj.mimetype(), 'image/jpeg')
 		self.assertEqual(tux.mimetype(), 'image/png')
 
-	def testHashCalculation(self):
+	def test_hash_calculation(self):
 		dj = ImageQuery(self.sample('django_colors.jpg'))
-		self.assertEqual(dj._name(), self.sample('django_colors.jpg'))
 		dj1 = dj.scale(100,100)
 		self.assertNotEqual(dj1._name(), dj._name())
 		dj2 = ImageQuery(self.sample('django_colors.jpg')).scale(100,100)
+
 		self.assertEqual(dj1._name(), dj2._name())
 		self.assertNotEqual(dj._name(), dj2._name())
 		dj3 = dj.scale(101,101)
