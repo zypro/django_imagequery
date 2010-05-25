@@ -521,6 +521,14 @@ class Clip(Operation):
 
 
 class ImageQuery(object):
+	# new ctor:
+	# ImageQuery('foo/image.png') -> uses default storage
+	# ImageQuery('foo/image.png', storage=...) -> uses provided storage
+	# ImageQuery(iq) -> copy imagequery
+	# ImageQuery(file) -> use already loaded File object
+	# ImageQuery(file, storage=...) -> use already loaded File object incl. storage
+	# ImageQuery(fieldfile) -> use already loaded FieldFile object (incl. its storage)
+	# + all the existing x/y/...-params
 	def __init__(self, image=None, query=None, x=None, y=None, color=(0,0,0,0)):
 		assert (image and not x and not y) or (not image and x and y)
 		if image:
