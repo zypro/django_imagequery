@@ -18,7 +18,8 @@ def get_image_object(value, storage=default_storage):
 	if isinstance(value, ImageQuery):
 		return value.raw()
 	if isinstance(value, File):
-		return Image.open(value.open('rb'))
+		value.open('rb')
+		return Image.open(value)
 	return Image.open(storage.open(value, 'rb'))
 
 def get_font_object(value, size=None):
@@ -536,7 +537,8 @@ class ImageQuery(object):
 		self.cache_storage = cache_storage
 		if isinstance(source, File):
 			self.source = source.name
-			self.image = Image.open(source.open('rb'))
+			source.open('rb')
+			self.image = Image.open(source)
 			if isinstance(source, FieldFile):
 				# we use the field storage, regardless what the constructor
 				# get as param, just to be safe
