@@ -618,6 +618,8 @@ class ImageQuery(object):
 			if image.format:
 				format = image.format
 			if not format:
+				if not Image.EXTENSION:
+					Image.init()
 				format = Image.EXTENSION[os.path.splitext(name)[1]]
 			if not self.cache_storage.exists(name):
 				self.cache_storage.save(name, ContentFile(''))
@@ -879,6 +881,8 @@ class ImageQuery(object):
 	def mimetype(self):
 		format = self.raw().format
 		try:
+			if not Image.MIME:
+				Image.init()
 			return Image.MIME[format]
 		except KeyError:
 			return None

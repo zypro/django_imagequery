@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import shutil
+import Image
 from django.test import TestCase
 from django.conf import settings
 from django.core.files.storage import FileSystemStorage
@@ -30,7 +31,7 @@ class ImageQueryTest(TestCase):
 
     def tearDown(self):
         shutil.rmtree(self.tmp_dir)
-
+    
     def sample(self, path):
         return os.path.join(self.sample_dir, path)
     def tmp(self, path):
@@ -38,9 +39,9 @@ class ImageQueryTest(TestCase):
     def compare(self, im1, im2):
         import hashlib
         f1hash = hashlib.md5()
-        f1hash.update(file(im1).read())
+        f1hash.update(Image.open(im1).tostring())
         f2hash = hashlib.md5()
-        f2hash.update(file(im2).read())
+        f2hash.update(Image.open(im2).tostring())
         return f1hash.hexdigest() == f2hash.hexdigest()
 
     def test_load_simple_filename(self):
