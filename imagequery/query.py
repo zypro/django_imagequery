@@ -13,7 +13,7 @@ IMAGE_CACHE_DIR = getattr(settings, 'IMAGEQUERY_CACHE_DIR', 'cache')
 DEFAULT_OPTIONS = getattr(settings, 'IMAGEQUERY_DEFAULT_OPTIONS', None)
 
 def get_image_object(value, storage=default_storage):
-	if isinstance(value, ImageFile.ImageFile):
+	if isinstance(value, (ImageFile.ImageFile, Image.Image)):
 		return value
 	if isinstance(value, ImageQuery):
 		return value.raw()
@@ -618,7 +618,7 @@ class ImageQuery(object):
 			if image.format:
 				format = image.format
 			if not format:
-				format = Image.EXTENSION['.' + os.path.splitext(name)[1]]
+				format = Image.EXTENSION[os.path.splitext(name)[1]]
 			if not self.cache_storage.exists(name):
 				self.cache_storage.save(name, ContentFile(''))
 			if DEFAULT_OPTIONS:
