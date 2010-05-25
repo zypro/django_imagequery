@@ -1,8 +1,8 @@
 import os
-import Image
+import Image, ImageFile
 from django.conf import settings
 from django.utils.encoding import smart_str
-from django.core.files import File
+from django.core.files.base import File, ContentFile
 from django.core.files.storage import default_storage
 from django.db.models.fields.files import FieldFile
 
@@ -13,6 +13,8 @@ IMAGE_CACHE_DIR = getattr(settings, 'IMAGEQUERY_CACHE_DIR', 'cache')
 DEFAULT_OPTIONS = getattr(settings, 'IMAGEQUERY_DEFAULT_OPTIONS', None)
 
 def get_image_object(value, storage=default_storage):
+	if isinstance(value, ImageFile.ImageFile):
+		return value
 	if isinstance(value, ImageQuery):
 		return value.raw()
 	if isinstance(value, File):
@@ -595,8 +597,8 @@ class ImageQuery(object):
 		image = self.query.execute(image)
 		return image
 
-	def _create_raw(self):
-		if self._exists(): # Load existing image if possible
+	def _create_raw(self, allow_reopen=True):
+		if allow_reopen and self._exists(): # Load existing image if possible
 			# TODO: Check if this has side-effects!
 			return Image.open(self.cache_storage.open(self._name(), 'rb'))
 		return self._apply_operations(self.image)
@@ -609,14 +611,14 @@ class ImageQuery(object):
 			if name is None:
 				name = self._path()
 			name = smart_str(name)
-			image = self._create_raw()
+			image = self._create_raw(allow_reopen=False)
 			format = self.image.format
 			if image.format:
 				format = image.format
 			if not format:
 				format = Image.EXTENSION['.' + os.path.splitext(name)[1]]
 			if not self.cache_storage.exists(name):
-				self.cache_storage.save(name, '')
+				self.cache_storage.save(name, ContentFile(''))
 			if DEFAULT_OPTIONS:
 				save_options = DEFAULT_OPTIONS.copy()
 			else:
