@@ -16,16 +16,15 @@ class ImageModel(models.Model):
         def __unicode__(self):
                 return self.name
 
-        @models.permalink
-        def get_absolute_url(self):
-                return '-detail', (self.slug,), {}
-
 
 class ImageQueryTest(TestCase):
 	def setUp(self):
-		self.sample_dir = os.path.join(os.path.dirname(__file__), 'sampleimages')
 		import tempfile
 		self.tmp_dir = tempfile.mkdtemp()
+		self.sample_dir = 'sampleimages'
+                shutil.copytree(
+                    os.path.join(os.path.dirname(__file__), 'sampleimages'),
+                    os.path.join(self.tmp_dir, self.sample_dir))
 		self.media_root = settings.MEDIA_ROOT
 		settings.MEDIA_ROOT = self.tmp_dir
 		self.tmpstorage_dir = tempfile.mkdtemp()
