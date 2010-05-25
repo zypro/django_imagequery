@@ -1,9 +1,24 @@
 # -*- coding: utf-8 -*-
 import os
+import shutil
 from django.test import TestCase
 from django.conf import settings
+from django.core.files.storage import FileSystemStorage
+from django.db import models
 
 from imagequery.query import ImageQuery
+
+
+class ImageModel(models.Model):
+        name = models.CharField(max_length=50)
+        image = models.ImageField(upload_to='test')
+
+        def __unicode__(self):
+                return self.name
+
+        @models.permalink
+        def get_absolute_url(self):
+                return '-detail', (self.slug,), {}
 
 
 class ImageQueryTest(TestCase):
@@ -13,6 +28,8 @@ class ImageQueryTest(TestCase):
 		self.tmp_dir = tempfile.mkdtemp()
 		self.media_root = settings.MEDIA_ROOT
 		settings.MEDIA_ROOT = self.tmp_dir
+		self.tmpstorage_dir = tempfile.mkdtemp()
+                self.tmpstorage = FileSystemStorage(location=self.tmpstorage_dir)
 
 	def tearDown(self):
 		settings.MEDIA_ROOT = self.media_root
@@ -29,16 +46,35 @@ class ImageQueryTest(TestCase):
 		f2hash.update(file(im2).read())
 		return f1hash.hexdigest() == f2hash.hexdigest()
 
-	def testLoading(self):
+	def test_load_simple_filename(self):
+		iq = ImageQuery(self.sample('django_colors.jpg'))
+		iq.grayscale().save(self.tmp('test.jpg'))
+		self.assert_(self.compare(self.tmp('test.jpg'), self.sample('results/django_colors_gray.jpg')))
+
+        def test_load_open_image_file(self):
 		import Image
-		dj = ImageQuery(self.sample('django_colors.jpg'))
-		dj.grayscale().save(self.tmp('test1.jpg'))
-		dj2 = ImageQuery(Image.open(self.sample('django_colors.jpg')))
-		dj2.grayscale().save(self.tmp('test2.jpg'))
-		self.assert_(self.compare(self.tmp('test1.jpg'), self.tmp('test2.jpg')))
+		iq = ImageQuery(Image.open(self.sample('django_colors.jpg')))
+		iq.grayscale().save(self.tmp('test.jpg'))
+		self.assert_(self.compare(self.tmp('test.jpg'), self.sample('results/django_colors_gray.jpg')))
+
+        def test_load_blank_image(self):
 		blank = ImageQuery(x=100,y=100,color=(250,200,150,100))
 		blank.save(self.tmp('test.png'))
 		self.assert_(self.compare(self.tmp('test.png'), self.sample('results/blank_100x100_250,200,150,100.png')))
+
+        def test_load_model_field(self):
+                instance = ImageModel.objects.create(name='Hi', image=self.sample('django_colors.jpg'))
+                instance = ImageModel.objects.get(pk=instance.pk)
+                iq = ImageQuery(instance.image)
+		iq.grayscale().save(self.tmp('test.jpg'))
+		self.assert_(self.compare(self.tmp('test.jpg'), self.sample('results/django_colors_gray.jpg')))
+
+        def test_load_from_custom_storage(self):
+                shutil.copyfile(self.sample('django_colors.jpg'), os.path.join(self.tmpstorage_dir, 'customstorage.jpg'))
+                # load from custom tmp storage
+                iq = ImageQuery('customstorage.jpg', storage=self.tmpstorage)
+		iq.grayscale().save('save.jpg')
+		self.assert_(self.compare(os.path.join(self.tmpstorage_dir, 'save.jpg'), self.sample('results/django_colors_gray.jpg')))
 
 	def testOperations(self):
 		dj = ImageQuery(self.sample('django_colors.jpg'))

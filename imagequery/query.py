@@ -656,7 +656,7 @@ class ImageQuery(object):
 		return self.url()
 
 	def __repr__(self):
-		return '<ImageQuery %s> ' % self._name()
+		return '<ImageQuery %s>' % self._name()
 
 	########################################
 	# Query methods ########################
