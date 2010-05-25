@@ -2,3 +2,5 @@
  * enhance tests
  * docs
  * allow imagequery.save(..., storage=...)
+ * include Format-class
+
