@@ -1,5 +1,4 @@
- * Use File Storage
- * QueryItem without next
  * setup.py
  * enhance tests
  * docs
+ * allow imagequery.save(..., storage=...)
