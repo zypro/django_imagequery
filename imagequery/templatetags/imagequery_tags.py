@@ -1,6 +1,7 @@
 from django import template
 from imagequery import ImageQuery
 from django.db.models.fields.files import ImageFieldFile
+from django.utils.encoding import smart_unicode
 
 register = template.Library()
 
@@ -27,10 +28,8 @@ def parse_attrs(attrs):
 def get_imagequery(value):
 	if isinstance(value, ImageQuery):
 		return value
-	if isinstance(value, ImageFieldFile):
-		value = value.name
-	# value must be the path to an image
-	value = unicode(value)
+	# value must be the path to an image or an image field (model attr)
+	value = smart_unicode(value)
 	return ImageQuery(value)
 
 def imagequerify(func):
@@ -192,3 +191,4 @@ def equal_height(parser, token):
 	if 'maxwidth' not in options:
 		raise template.TemplateSyntaxError(u'%r tag must have an maxwidth option.' % tagname)
 	return EqualHeightNode(from_value, to_value, options)
+
