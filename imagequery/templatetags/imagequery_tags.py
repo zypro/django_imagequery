@@ -185,10 +185,10 @@ def equal_height(parser, token):
 		if i == 3:
 			to_value.append(v)
 		if (i == 4 and v != 'and') or (i == 2 and v != 'as'):
-			raise template.TemplateSyntaxError(u'%r tag must look like {%% %r obj as obj2 and obj3 as obj4 ... %}.' % (tagname, tagname))
+			raise template.TemplateSyntaxError(u'%r tag must look like {%% %r obj as obj2 and obj3 as obj4 ... %}.' % (tag_name, tag_name))
 	if len(from_value) != len(to_value) or not from_value:
-		raise template.TemplateSyntaxError(u'%r tag must look like {%% %r obj as obj2 and obj3 as obj4 ... %}.' % (tagname, tagname))
+		raise template.TemplateSyntaxError(u'%r tag must look like {%% %r obj as obj2 and obj3 as obj4 ... %}.' % (tag_name, tag_name))
 	if 'maxwidth' not in options:
-		raise template.TemplateSyntaxError(u'%r tag must have an maxwidth option.' % tagname)
+		raise template.TemplateSyntaxError(u'%r tag must have an maxwidth option.' % tag_name)
 	return EqualHeightNode(from_value, to_value, options)
 
