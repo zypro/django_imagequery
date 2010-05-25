@@ -2,23 +2,22 @@ import os
 import Image
 from django.conf import settings
 from django.utils.encoding import smart_str
+from django.core.files import File
+from django.core.files.storage import default_storage
+from django.db.models.fields.files import FieldFile
 
 
-BASE_DIR = settings.MEDIA_ROOT
 IMAGE_CACHE_DIR = getattr(settings, 'IMAGEQUERY_CACHE_DIR', 'cache')
 # can be used to define quality
 # IMAGEQUERY_DEFAULT_OPTIONS = {'quality': 92}
 DEFAULT_OPTIONS = getattr(settings, 'IMAGEQUERY_DEFAULT_OPTIONS', None)
 
-def get_image_object(value):
+def get_image_object(value, storage=default_storage):
 	if isinstance(value, ImageQuery):
 		return value.raw()
-	if isinstance(value, Image.Image):
-		return value
-	import ImageFile
-	if isinstance(value, ImageFile.ImageFile):
-		return value
-	return Image.open(os.path.join(BASE_DIR, value))
+	if isinstance(value, File):
+		return Image.open(value.open('rb'))
+	return Image.open(storage.open(value, 'rb'))
 
 def get_font_object(value, size=None):
 	import ImageFont
@@ -49,7 +48,6 @@ def _get_image_registry(item):
 	return _IMAGE_REGISTRY.get(item, None)
 
 
-# TODO: Einfach verkettete Liste ohne next, damit das copy klappt...
 class QueryItem(object):
 	def __init__(self, operation=None):
 		self._previous = None
@@ -124,6 +122,13 @@ class QueryItem(object):
 		while first._previous is not None:
 			first = first._previous
 		return first
+	
+	def has_operations(self):
+		if self.operation:
+			return True
+		if self._previous:
+			return self._previous.has_operations()
+		return False
 
 
 class Operation(object):
@@ -305,9 +310,9 @@ class Blank(Operation):
 
 
 class Paste(Operation):
-	args = ('image','x','y')
+	args = ('image','x','y','storage')
 	def execute(self, image, query):
-		athor = get_image_object(self.image)
+		athor = get_image_object(self.image, self.storage)
 		x2, y2 = athor.size
 		x1 = get_coords(image.size[0], athor.size[0], self.x)
 		y1 = get_coords(image.size[1], athor.size[1], self.y)
@@ -343,10 +348,10 @@ class Paste(Operation):
 
 
 class Background(Operation):
-	args = ('image','x','y')
+	args = ('image','x','y','storage')
 	def execute(self, image, query):
 		background = Image.new('RGBA', image.size, color=(0,0,0,0))
-		athor = get_image_object(self.image)
+		athor = get_image_object(self.image, self.storage)
 		x2,y2 = image.size
 		x1 = get_coords(image.size[0], athor.size[0], self.x)
 		y1 = get_coords(image.size[1], athor.size[1], self.y)
@@ -400,12 +405,12 @@ class ApplyAlpha(GetChannel):
 
 
 class Blend(Operation):
-	args = ('image','alpha')
+	args = ('image','alpha','storage')
 	channel_map = {
 		'alpha': 0.5,
 	}
 	def execute(self, image, query):
-		athor = get_image_object(self.image)
+		athor = get_image_object(self.image, self.storage)
 		return Image.blend(image, athor, self.alpha)
 
 
@@ -457,10 +462,10 @@ class FontDefaults(Operation):
 
 
 class Composite(Operation):
-	args = ('image','mask')
+	args = ('image','mask','storage')
 	def execute(self, image, query):
-		athor = get_image_object(self.image)
-		mask = get_image_object(self.mask)
+		athor = get_image_object(self.image, self.storage)
+		mask = get_image_object(self.mask, self.storage)
 		return Image.composite(image, athor, mask)
 
 
@@ -521,42 +526,24 @@ class Clip(Operation):
 
 
 class ImageQuery(object):
-	# new ctor:
-	# ImageQuery('foo/image.png') -> uses default storage
-	# ImageQuery('foo/image.png', storage=...) -> uses provided storage
-	# ImageQuery(iq) -> copy imagequery
-	# ImageQuery(file) -> use already loaded File object
-	# ImageQuery(file, storage=...) -> use already loaded File object incl. storage
-	# ImageQuery(fieldfile) -> use already loaded FieldFile object (incl. its storage)
-	# + all the existing x/y/...-params
-	def __init__(self, image=None, query=None, x=None, y=None, color=(0,0,0,0)):
-		assert (image and not x and not y) or (not image and x and y)
-		if image:
-			import ImageFile
-			if isinstance(image, ImageQuery):
-				athor = image
-				self.source = athor.source
-				self.image = athor.image
-				query = athor.query
-			elif isinstance(image, ImageFile.ImageFile):
-				self.image = image.copy()
-				self.source = image.filename
-			elif isinstance(image, Image.Image):
-				self.image = image.copy()
-				self.source = None
-			else:
-				# assume that image is a filename
-				self.source = smart_str(image)
-				self.image = Image.open(os.path.join(BASE_DIR, self.source))
+	def __init__(self, source, storage=default_storage, cache_storage=None):
+		query = None
+		self.storage = storage
+		if cache_storage is None:
+			cache_storage = storage
+		self.cache_storage = cache_storage
+		if isinstance(source, File):
+			self.source = source.name
+			self.image = Image.open(source.open('rb'))
+			if isinstance(source, FieldFile):
+				# we use the field storage, regardless what the constructor
+				# get as param, just to be safe
+				self.storage = source.storage
 		else:
-			self.image = Image.new('RGBA', (x, y), color)
-			self.source = None
-		if query:
-			import copy
-			self.query = copy.copy(query)
-		else:
-			self.query = QueryItem()
-		self.query.source = self.source
+			# assume that image is a filename
+			self.source = smart_str(source)
+			self.image = Image.open(storage.open(self.source, 'rb'))
+		self.query = QueryItem()
 
 	def _basename(self):
 		if self.source:
@@ -574,8 +561,8 @@ class ImageQuery(object):
 			return '%s.png' % name
 
 	def _name(self):
-		hashval = self.query.name()
-		if hashval:
+		if self.query.has_operations():
+			hashval = self.query.name()
 			if not self.source or self.source.startswith('/'): # TODO: Support windows?
 				return os.path.join(IMAGE_CACHE_DIR, hashval, self._basename())
 			else:
@@ -585,21 +572,22 @@ class ImageQuery(object):
 
 	def _source(self):
 		if self.source:
-			return os.path.join(BASE_DIR, self.source)
+			return self.storage.path(self.source)
 
 	def _path(self):
 		if self.source:
-			return os.path.join(BASE_DIR, self._name())
+			return self.cache_storage.path(self._name())
 
 	def _url(self):
-		return os.path.join(settings.MEDIA_URL, self._name())
+		if self.query.has_operations():
+			return self.cache_storage.url(self._name())
+		else:
+			return self.storage.url(self._name())
 
 	def _exists(self):
 		if self.source and \
-			os.path.exists(self._path()) and not ( \
-				os.path.exists(self._source()) and \
-				os.path.getmtime(self._source()) > os.path.getmtime(self._path()) \
-			):
+			self.cache_storage.exists(self._path()):
+				# TODO: if storage.path() exists: check filemtime?
 				return True
 		return False
 
@@ -610,8 +598,7 @@ class ImageQuery(object):
 	def _create_raw(self):
 		if self._exists(): # Load existing image if possible
 			# TODO: Check if this has side-effects!
-			path = os.path.join(BASE_DIR, self._path())
-			return Image.open(path)
+			return Image.open(self.cache_storage.open(self._name(), 'rb'))
 		return self._apply_operations(self.image)
 
 	def _create(self, name=None, **options):
@@ -623,10 +610,13 @@ class ImageQuery(object):
 				name = self._path()
 			name = smart_str(name)
 			image = self._create_raw()
-			path = os.path.join(BASE_DIR, name)
-			pathdir = os.path.dirname(path)
-			if not os.path.exists(pathdir):
-				os.makedirs(pathdir)
+			format = self.image.format
+			if image.format:
+				format = image.format
+			if not format:
+				format = Image.EXTENSION['.' + os.path.splitext(name)[1]]
+			if not self.cache_storage.exists(name):
+				self.cache_storage.save(name, '')
 			if DEFAULT_OPTIONS:
 				save_options = DEFAULT_OPTIONS.copy()
 			else:
@@ -635,12 +625,20 @@ class ImageQuery(object):
 			# options may raise errors
 			# TODO: Check this
 			try:
-				image.save(path, None, **save_options)
+				image.save(self.cache_storage.open(name, 'wb'), format, **save_options)
 			except TypeError:
-				image.save(path)
+				image.save(self.cache_storage.open(name, 'wb'), format)
 
 	def _clone(self):
-		return ImageQuery(self)
+		import copy
+		clone = RawImageQuery(
+			self.image,
+			self.source,
+			self.storage,
+			self.cache_storage,
+		)
+		clone.query = copy.copy(self.query)
+		return clone
 
 	def _evaluate(self):
 		if not self._exists():
@@ -667,25 +665,31 @@ class ImageQuery(object):
 		q = q._append(Blank(x,y,color))
 		return q
 
-	def paste(self, image, x=0, y=0):
+	def paste(self, image, x=0, y=0, storage=None):
 		'''
 		Pastes the given image above the current one.
 		'''
 		q = self._clone()
-		q = q._append(Paste(image,x,y))
+		if storage is None:
+			storage = self.storage
+		q = q._append(Paste(image,x,y,storage))
 		return q
 
-	def background(self, image, x=0, y=0):
+	def background(self, image, x=0, y=0, storage=None):
 		'''
 		Same as paste but puts the given image behind the current one.
 		'''
 		q = self._clone()
-		q = q._append(Background(image,x,y))
+		if storage is None:
+			storage = self.storage
+		q = q._append(Background(image,x,y,storage))
 		return q
 
-	def blend(self, image, alpha=0.5):
+	def blend(self, image, alpha=0.5, storage=None):
 		q = self._clone()
-		q = q._append(Blend(image,alpha))
+		if storage is None:
+			storage = self.storage
+		q = q._append(Blend(image,alpha,storage))
 		return q
 
 	def resize(self, x=None, y=None, filter=Image.ANTIALIAS):
@@ -799,7 +803,7 @@ class ImageQuery(object):
 		)
 
 	@staticmethod
-	def textimg(text, font, size=None, fill=None, padding=0, mode='RGBA'):
+	def textimg(text, font, size=None, fill=None, padding=0, mode='RGBA', storage=default_storage):
 		import ImageDraw
 		font = get_font_object(font, size)
 		imgsize, offset = ImageQuery.img_textbox(text, font, size)
@@ -818,11 +822,13 @@ class ImageQuery(object):
 		if Image.VERSION == '1.1.5' and isinstance(text, unicode):
 			text = text.encode('utf-8')
 		draw.text(offset, text, font=font, fill=fill)
-		return ImageQuery(fontimage)
+		return RawImageQuery(fontimage, storage=storage)
 
-	def composite(self, image, mask):
+	def composite(self, image, mask, storage=None):
 		q = self._clone()
-		q = q._append(Composite(image, mask))
+		if storage is None:
+			storage = self.storage
+		q = q._append(Composite(image, mask, storage))
 		return q
 
 	def offset(self, x, y):
@@ -898,4 +904,22 @@ class ImageQuery(object):
 	def url(self):
 		self._evaluate()
 		return self._url()
+
+
+class RawImageQuery(ImageQuery):
+	def __init__(self, image, source=None, storage=default_storage, cache_storage=None):
+		self.image = get_image_object(image, storage)
+		self.source = source
+		self.storage = storage
+		if cache_storage is None:
+			cache_storage = storage
+		self.cache_storage = cache_storage
+		self.query = QueryItem()
+
+
+class NewImageQuery(RawImageQuery):
+	def __init__(self, x, y, color=(0,0,0,0), storage=default_storage, cache_storage=None):
+		image = Image.new('RGBA', (x, y), color)
+		super(NewImageQuery, self).__init__(image, storage=storage, cache_storage=cache_storage)
+
 
