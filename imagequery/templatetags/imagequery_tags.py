@@ -109,6 +109,7 @@ class ImageFormatNode(template.Node):
             return format.url()
 
 
+# TODO: Support storage engines? Template-filter for changing some ImageQuery instead?
 @register.tag
 def image_format(parser, token):
     # {% image_format "some_format" foo.image %}
