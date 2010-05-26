@@ -528,27 +528,16 @@ class Clip(Operation):
 		return new
 
 
-class ImageQuery(object):
-	def __init__(self, source, storage=default_storage, cache_storage=None):
-		query = None
+class RawImageQuery(object):
+	def __init__(self, image, source=None, storage=default_storage, cache_storage=None):
+		self.image = get_image_object(image, storage)
+		self.source = source
 		self.storage = storage
 		if cache_storage is None:
 			cache_storage = storage
 		self.cache_storage = cache_storage
-		if isinstance(source, File):
-			self.source = source.name
-			source.open('rb')
-			self.image = Image.open(source)
-			if isinstance(source, FieldFile):
-				# we use the field storage, regardless what the constructor
-				# get as param, just to be safe
-				self.storage = source.storage
-		else:
-			# assume that image is a filename
-			self.source = smart_str(source)
-			self.image = Image.open(storage.open(self.source, 'rb'))
 		self.query = QueryItem()
-
+	
 	def _basename(self):
 		if self.source:
 			return os.path.basename(self.source)
@@ -637,12 +626,13 @@ class ImageQuery(object):
 
 	def _clone(self):
 		import copy
-		clone = RawImageQuery(
-			self.image,
-			self.source,
-			self.storage,
-			self.cache_storage,
-		)
+		# clone = RawImageQuery(
+			# self.image,
+			# self.source,
+			# self.storage,
+			# self.cache_storage,
+		# )
+		clone = copy.copy(self)
 		clone.query = copy.copy(self.query)
 		return clone
 
@@ -914,20 +904,41 @@ class ImageQuery(object):
 		return self._url()
 
 
-class RawImageQuery(ImageQuery):
-	def __init__(self, image, source=None, storage=default_storage, cache_storage=None):
-		self.image = get_image_object(image, storage)
-		self.source = source
-		self.storage = storage
-		if cache_storage is None:
-			cache_storage = storage
-		self.cache_storage = cache_storage
-		self.query = QueryItem()
-
-
 class NewImageQuery(RawImageQuery):
 	def __init__(self, x, y, color=(0,0,0,0), storage=default_storage, cache_storage=None):
 		image = Image.new('RGBA', (x, y), color)
 		super(NewImageQuery, self).__init__(image, storage=storage, cache_storage=cache_storage)
 
+
+class ImageQuery(RawImageQuery):
+	def __init__(self, source, storage=default_storage, cache_storage=None):
+		query = None
+		self.storage = storage
+		if cache_storage is None:
+			cache_storage = storage
+		self.cache_storage = cache_storage
+		if isinstance(source, File):
+			self.source = source.name
+			source.open('rb')
+			self.fh = source
+			if isinstance(source, FieldFile):
+				# we use the field storage, regardless what the constructor
+				# get as param, just to be safe
+				self.storage = source.storage
+		else:
+			# assume that image is a filename
+			self.source = smart_str(source)
+			self.fh = storage.open(self.source, 'rb')
+		self.query = QueryItem()
+	
+	def _get_image(self):
+		try:
+			return self._image
+		except AttributeError:
+			self.fh.open('rb') # reset file access
+			self._image = Image.open(self.fh)
+			return self._image
+	def _set_image(self, image):
+		self._image = image
+	image = property(_get_image, _set_image)
 
