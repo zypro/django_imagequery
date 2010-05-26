@@ -1,6 +1,8 @@
 from imagequery import ImageQuery
 from django.core.cache import cache
 
+# TODO: Keep this?
+# TODO: Add storage support
 def equal_height(images, maxwidth=None):
     minheight = None # infinity
     all_values = ':'.join(images.values())

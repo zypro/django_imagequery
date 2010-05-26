@@ -7,6 +7,7 @@ from django.conf import settings
 from django.core.files.storage import FileSystemStorage
 from django.db import models
 from imagequery.query import ImageQuery, RawImageQuery, NewImageQuery
+from imagequery import formats
 
 
 class ImageModel(models.Model):
@@ -15,6 +16,11 @@ class ImageModel(models.Model):
 
     def __unicode__(self):
         return self.name
+
+
+class TestFormat(formats.Format):
+    def execute(self, qs):
+        return qs.grayscale().query_name('test_format')
 
 
 class ImageQueryTest(TestCase):
@@ -28,9 +34,13 @@ class ImageQueryTest(TestCase):
             self.sample_dir)
         self.tmpstorage_dir = tempfile.mkdtemp()
         self.tmpstorage = FileSystemStorage(location=self.tmpstorage_dir)
+        self.registered_formats = formats._formats
+        formats._formats = {}
+        formats.register('test', TestFormat)
 
     def tearDown(self):
         shutil.rmtree(self.tmp_dir)
+        formats._formats = self.registered_formats
     
     def sample(self, path):
         return os.path.join(self.sample_dir, path)
@@ -119,3 +129,18 @@ class ImageQueryTest(TestCase):
         self.assertNotEqual(dj._name(), dj2._name())
         dj3 = dj.scale(101,101)
         self.assertNotEqual(dj1._name(), dj3._name())
+    
+    def test_format(self):
+        iq = ImageQuery(self.sample('django_colors.jpg'))
+        f = TestFormat(iq)
+        self.assert_(self.compare(f.path(), self.sample('results/django_colors_gray.jpg')))
+    
+    def test_template_format(self):
+        from django import template
+        tpl = template.Template('{% load imagequery_tags %}{% image_format "test" image %}')
+        ctx = template.Context({
+            'image': ImageQuery(self.sample('django_colors.jpg')),
+        })
+        result = tpl.render(ctx)
+        self.assertEqual(result, 'cache/test_format/django_colors.jpg')
+

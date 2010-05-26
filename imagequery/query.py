@@ -531,7 +531,7 @@ class Clip(Operation):
 class RawImageQuery(object):
     def __init__(self, image, source=None, storage=default_storage, cache_storage=None):
         self.image = get_image_object(image, storage)
-        self.source = source
+        self.source = smart_str(source)
         self.storage = storage
         if cache_storage is None:
             cache_storage = storage
@@ -542,21 +542,18 @@ class RawImageQuery(object):
         if self.source:
             return os.path.basename(self.source)
         else:
-            # the image was not loaded from source. create a random name
-            # TODO: Use md5 of contents, so we don't flood the cache
-            import datetime, random
-            CHOICES = '0123456789abcdef'
-            name = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
-            random_name = ''
-            while len(random_name) < 8:
-                random_name += random.choice(CHOICES)
-            name += '-' + random_name
-            return '%s.png' % name
+            # the image was not loaded from source. create some name
+            import hashlib
+            md5 = hashlib.md5()
+            md5.update(self.image.tostring())
+            return '%s.png' % md5.hexdigest()
 
     def _name(self):
         if self.query.has_operations():
             hashval = self.query.name()
-            if not self.source or self.source.startswith('/'): # TODO: Support windows?
+            # TODO: Support windows?
+            # TODO: Remove support for absolute path?
+            if not self.source or self.source.startswith('/'):
                 return os.path.join(IMAGE_CACHE_DIR, hashval, self._basename())
             else:
                 return os.path.join(IMAGE_CACHE_DIR, hashval, self.source)

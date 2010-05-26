@@ -1,3 +1,17 @@
+class FormatDoesNotExist(Exception):
+	pass
+
+_formats = {}
+
+def register(name, format):
+    _formats[name] = format
+
+def get(name):
+	try:
+		return _formats[name]
+	except KeyError:
+		raise FormatDoesNotExist()
+
 
 class Format(object):
     # we don't allow passing filenames here, as this would need us to

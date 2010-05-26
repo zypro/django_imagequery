@@ -1,5 +1,5 @@
 from django import template
-from imagequery import ImageQuery
+from imagequery import ImageQuery, formats
 from django.db.models.fields.files import ImageFieldFile
 from django.utils.encoding import smart_unicode
 
@@ -29,7 +29,6 @@ def get_imagequery(value):
     if isinstance(value, ImageQuery):
         return value
     # value must be the path to an image or an image field (model attr)
-    value = smart_unicode(value)
     return ImageQuery(value)
 
 def imagequerify(func):
@@ -46,33 +45,6 @@ def imagequerify(func):
         return func(image, attr)
     return newfunc
 
-#@register.filter
-#@imagequerify
-#def resize(image, attr):
-#   args, kwargs = parse_attrs(attr)
-#   return image.resize(*args, **kwargs)
-#
-#@register.filter
-#@imagequerify
-#def scale(image, attr):
-#   args, kwargs = parse_attrs(attr)
-#   return image.scale(*args, **kwargs)
-#
-#@register.filter
-#@imagequerify
-#def unsharp(value, attr=None):
-#   args, kwargs = parse_attrs(attr)
-#   return image.unsharp(*args, **kwargs)
-#
-#@register.filter
-#@imagequerify
-#def grayscale(value):
-#   return image.grayscale()
-#
-#@register.filter
-#@imagequerify
-#def blur(value):
-#   return image.blur()
 def imagequerify_filter(value):
     return get_imagequery(value)
 register.filter('imagequerify', imagequerify_filter)
@@ -86,7 +58,6 @@ def imagequery_filter(method_name, filter_name=None):
     filter = imagequerify(filter)
     filter = register.filter(filter_name, filter)
     return filter
-
 
 crop = imagequery_filter('crop')
 fit = imagequery_filter('fit')
@@ -114,81 +85,45 @@ url = imagequery_filter('url')
 query_name = imagequery_filter('query_name')
 
 
-
-
-class EqualHeightNode(template.Node):
-    def __init__(self, from_values, to_values, options):
-        self.from_values = []
-        self.to_values = to_values
-        self.options = options
-        for value in from_values:
-            self.from_values.append(template.Variable(value))
+class ImageFormatNode(template.Node):
+    def __init__(self, format, image, name):
+        self.format = template.Variable(format)
+        self.image = template.Variable(image)
+        self.name = name
 
     def render(self, context):
         try:
-            import ipdb; ipdb.set_trace()
-        except ImportError:
-            pass
-        maxwidth = int(self.options['maxwidth'])
-        minheight = None # infinity
-        from_values = []
-        for value in self.from_values:
-            try:
-                value = value.resolve(context)
-                if value:
-                    value = get_imagequery(value)
-                from_values.append(value)
-            except template.VariableDoesNotExist:
-                from_values.append(None)
-        for i, value in enumerate(from_values):
-            if not value:
-                continue
-            test_value = value.resize(x=maxwidth)
-            if minheight is None or test_value.height() < minheight:
-                minheight = test_value.height()
-            from_values[i] = value
-        for i, value in enumerate(from_values):
-            if not value:
-                context[self.to_values[i]] = value
-            else:
-                value = value.scale(x=maxwidth, y=minheight)
-                context[self.to_values[i]] = value
-        return ''
+            formatname = self.format.resolve(context)
+            image = self.image.resolve(context)
+        except template.VariableDoesNotExist:
+            return ''
+        try:
+            format_cls = formats.get(formatname)
+        except formats.FormatDoesNotExist:
+            return ''
+        format = format_cls(get_imagequery(image))
+        if self.name:
+            context[self.name] = format
+            return ''
+        else:
+            return format.url()
 
 
 @register.tag
-def equal_height(parser, token):
-    '''
-    Takes images and resizes them to the same height. You must pass an maxwidth
-    argument. The resizing keeps the images' ratio.
-
-    Usage:
-        {% equal_height (variable as new_variable)?
-            (and variable as new_variable)* maxwidth=[int] %}
-
-    Example:
-        {% equal_height image1 as newimage1 and image2 as newimage2 maxwidth=100 %}
-    '''
+def image_format(parser, token):
+    # {% image_format "some_format" foo.image %}
+    # {% image_format "some_format" foo.image as var %}
     bits = token.split_contents()
     tag_name = bits[0]
-    values = bits[1:-1]
-    options = {}
-    for option in bits[-1].split(','):
-        key, value = option.split('=')
-        options[key] = value
-    from_value = []
-    to_value = []
-    for i,v in enumerate(values):
-        i = ((i+1) % 4) or 4
-        if i == 1:
-            from_value.append(v)
-        if i == 3:
-            to_value.append(v)
-        if (i == 4 and v != 'and') or (i == 2 and v != 'as'):
-            raise template.TemplateSyntaxError(u'%r tag must look like {%% %r obj as obj2 and obj3 as obj4 ... %}.' % (tag_name, tag_name))
-    if len(from_value) != len(to_value) or not from_value:
-        raise template.TemplateSyntaxError(u'%r tag must look like {%% %r obj as obj2 and obj3 as obj4 ... %}.' % (tag_name, tag_name))
-    if 'maxwidth' not in options:
-        raise template.TemplateSyntaxError(u'%r tag must have an maxwidth option.' % tag_name)
-    return EqualHeightNode(from_value, to_value, options)
+    values = bits[1:]
+    if len(values) not in (2, 4):
+        raise template.TemplateSyntaxError(u'%r tag needs two or four parameters.' % tag_name)
+    format = values[0]
+    image = values[1]
+    name = None
+    if len(values) == 5:
+        if values[2] != 'as':
+            raise template.TemplateSyntaxError(u'%r tag: third parameter must be "as"' % tag_name)
+        name = values[3]
+    return ImageFormatNode(format, image, name)
 
