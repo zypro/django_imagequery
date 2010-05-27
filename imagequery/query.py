@@ -1,16 +1,30 @@
 import os
+import weakref
 import Image, ImageFile
 from django.conf import settings
 from django.utils.encoding import smart_str
 from django.core.files.base import File, ContentFile
-from django.core.files.storage import default_storage
+from django.core.files.storage import default_storage as _default_storage,\
+    get_storage_class
 from django.db.models.fields.files import FieldFile
 
-
-IMAGE_CACHE_DIR = getattr(settings, 'IMAGEQUERY_CACHE_DIR', 'cache')
+CACHE_DIR = getattr(settings, 'IMAGEQUERY_CACHE_DIR', 'cache')
 # can be used to define quality
 # IMAGEQUERY_DEFAULT_OPTIONS = {'quality': 92}
 DEFAULT_OPTIONS = getattr(settings, 'IMAGEQUERY_DEFAULT_OPTIONS', None)
+# storage options
+DEFAULT_STORAGE = getattr(settings, 'IMAGEQUERY_DEFAULT_STORAGE', None)
+DEFAULT_CACHE_STORAGE = getattr(settings, 'IMAGEQUERY_DEFAULT_CACHE_STORAGE', None)
+
+if DEFAULT_STORAGE:
+    default_storage = get_storage_class(DEFAULT_STORAGE)
+else:
+    default_storage = _default_storage
+if DEFAULT_CACHE_STORAGE:
+    default_cache_storage = get_storage_class(DEFAULT_CACHE_STORAGE)
+else:
+    # we use the image storage if default_cache_storage is None
+    default_cache_storage = None
 
 def get_image_object(value, storage=default_storage):
     if isinstance(value, (ImageFile.ImageFile, Image.Image)):
@@ -42,7 +56,6 @@ def get_coords(first, second, align):
 
 # stores rendered images
 # keys are hashes of image operations
-import weakref
 _IMAGE_REGISTRY = weakref.WeakKeyDictionary()
 
 def _set_image_registry(item, image):
@@ -52,6 +65,12 @@ def _get_image_registry(item):
 
 
 class QueryItem(object):
+    """
+    An ImageQuery consists of multiple QueryItem's
+    
+    Each QueryItem might have an associated Operation (like rescaling the image)
+    """
+    
     def __init__(self, operation=None):
         self._previous = None
         self._evaluated_image = None
@@ -135,6 +154,10 @@ class QueryItem(object):
 
 
 class Operation(object):
+    """
+    Image Operation, like scaling
+    """
+    
     args = ()
     args_defaults = {}
     attrs = {}
@@ -529,12 +552,16 @@ class Clip(Operation):
 
 
 class RawImageQuery(object):
+    """ Base class for raw handling of images, needs an loaded PIL image """
     def __init__(self, image, source=None, storage=default_storage, cache_storage=None):
         self.image = get_image_object(image, storage)
         self.source = smart_str(source)
         self.storage = storage
         if cache_storage is None:
-            cache_storage = storage
+            if default_cache_storage is None:
+                cache_storage = storage
+            else:
+                cache_storage = default_cache_storage
         self.cache_storage = cache_storage
         self.query = QueryItem()
     
@@ -554,9 +581,9 @@ class RawImageQuery(object):
             # TODO: Support windows?
             # TODO: Remove support for absolute path?
             if not self.source or self.source.startswith('/'):
-                return os.path.join(IMAGE_CACHE_DIR, hashval, self._basename())
+                return os.path.join(CACHE_DIR, hashval, self._basename())
             else:
-                return os.path.join(IMAGE_CACHE_DIR, hashval, self.source)
+                return os.path.join(CACHE_DIR, hashval, self.source)
         else:
             return self.source
 
@@ -902,17 +929,44 @@ class RawImageQuery(object):
 
 
 class NewImageQuery(RawImageQuery):
+    """ Creates an new (blank) image for you """
+    
     def __init__(self, x, y, color=(0,0,0,0), storage=default_storage, cache_storage=None):
         image = Image.new('RGBA', (x, y), color)
         super(NewImageQuery, self).__init__(image, storage=storage, cache_storage=cache_storage)
 
 
 class ImageQuery(RawImageQuery):
+    """ Write your image operations like you would use QuerySet
+    
+    With ImageQuery you are able to write image manipulations without needing
+    to learn some low-level API for the most use cases. It allows you to:
+     * simple manipulation like rescaling
+     * combining images
+     * handling text (note: fonts must be available locally)
+     * even more like creating drop shadows (using the alpha mask)
+    
+    ImageQuery basicly provides an API similar to the well known QuerySet API,
+    which means:
+     * Most methods just return another ImageQuery
+     * Every bit of your image manipulation chain can be used/saved
+     * Image manipulations are lazy, they are only evaluated when needed
+    
+    ImageQuery in addition automaticly stores the results in an cache, so you
+    don't need to worry about recreating the same image over and over again.
+    It is possible to use a different storage for caching, so you could - for
+    example - put all your cached images on an different server while keeping
+    the original files locally.
+    """
+    
     def __init__(self, source, storage=default_storage, cache_storage=None):
         query = None
         self.storage = storage
         if cache_storage is None:
-            cache_storage = storage
+            if default_cache_storage is None:
+                cache_storage = storage
+            else:
+                cache_storage = default_cache_storage
         self.cache_storage = cache_storage
         if isinstance(source, File):
             self.source = source.name

@@ -59,6 +59,7 @@ def imagequery_filter(method_name, filter_name=None):
     filter = register.filter(filter_name, filter)
     return filter
 
+# register all (/most of) the ImageQuery methods as filters
 crop = imagequery_filter('crop')
 fit = imagequery_filter('fit')
 resize = imagequery_filter('resize')
@@ -112,8 +113,17 @@ class ImageFormatNode(template.Node):
 # TODO: Support storage engines? Template-filter for changing some ImageQuery instead?
 @register.tag
 def image_format(parser, token):
-    # {% image_format "some_format" foo.image %}
-    # {% image_format "some_format" foo.image as var %}
+    """
+    Allows you to use predefined Format's for changing your images according to
+    predefined sets of operations. Format's must be registered for using them
+    here (using imagequery.formats.register("name", MyFormat).
+    
+    You can get the resulting Format instance as a context variable.
+    
+    Examples:
+    {% image_format "some_format" foo.image %}
+    {% image_format "some_format" foo.image as var %}
+    """
     bits = token.split_contents()
     tag_name = bits[0]
     values = bits[1:]
