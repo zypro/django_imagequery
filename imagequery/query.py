@@ -4,55 +4,11 @@ import Image, ImageFile
 from django.conf import settings
 from django.utils.encoding import smart_str
 from django.core.files.base import File, ContentFile
-from django.core.files.storage import default_storage as _default_storage,\
-    get_storage_class
 from django.db.models.fields.files import FieldFile
-
-CACHE_DIR = getattr(settings, 'IMAGEQUERY_CACHE_DIR', 'cache')
-# can be used to define quality
-# IMAGEQUERY_DEFAULT_OPTIONS = {'quality': 92}
-DEFAULT_OPTIONS = getattr(settings, 'IMAGEQUERY_DEFAULT_OPTIONS', None)
-# storage options
-DEFAULT_STORAGE = getattr(settings, 'IMAGEQUERY_DEFAULT_STORAGE', None)
-DEFAULT_CACHE_STORAGE = getattr(settings, 'IMAGEQUERY_DEFAULT_CACHE_STORAGE', None)
-
-if DEFAULT_STORAGE:
-    default_storage = get_storage_class(DEFAULT_STORAGE)
-else:
-    default_storage = _default_storage
-if DEFAULT_CACHE_STORAGE:
-    default_cache_storage = get_storage_class(DEFAULT_CACHE_STORAGE)
-else:
-    # we use the image storage if default_cache_storage is None
-    default_cache_storage = None
-
-def get_image_object(value, storage=default_storage):
-    if isinstance(value, (ImageFile.ImageFile, Image.Image)):
-        return value
-    if isinstance(value, ImageQuery):
-        return value.raw()
-    if isinstance(value, File):
-        value.open('rb')
-        return Image.open(value)
-    return Image.open(storage.open(value, 'rb'))
-
-def get_font_object(value, size=None):
-    import ImageFont
-    if isinstance(value, (ImageFont.ImageFont, ImageFont.FreeTypeFont)):
-        return value
-    if value[-4:].lower() in ('.ttf', '.otf'):
-        return ImageFont.truetype(value, size)
-    return ImageFont.load(value)
-
-def get_coords(first, second, align):
-    if align in ('left', 'top'):
-        return 0
-    if align in ('center', 'middle'):
-        return (first / 2) - (second / 2)
-    if align in ('right', 'bottom'):
-        return first - second
-    return align
-
+from imagequery import operation
+from imagequery.settings import CACHE_DIR, DEFAULT_OPTIONS, default_storage,\
+    default_cache_storage
+from imagequery.utils import get_image_object, get_font_object, get_coords
 
 # stores rendered images
 # keys are hashes of image operations
@@ -153,404 +109,6 @@ class QueryItem(object):
         return False
 
 
-class Operation(object):
-    """
-    Image Operation, like scaling
-    """
-    
-    args = ()
-    args_defaults = {}
-    attrs = {}
-
-    def __init__(self, *args, **kwargs):
-        allowed_args = list(self.args)
-        allowed_args.reverse()
-        for key in self.args_defaults:
-            setattr(self, key, self.args_defaults[key])
-        for value in args:
-            assert allowed_args, 'too many arguments, only accepting %s arguments' % len(self.args)
-            key = allowed_args.pop()
-            setattr(self, key, value)
-        for key in kwargs:
-            assert key in allowed_args, '%s is not an accepted keyword argument' % key
-            setattr(self, key, kwargs[key])
-
-    def __unicode__(self):
-        content = [self.__class__.__name__]
-        args = '-'.join([str(getattr(self, key)) for key in self.args])
-        if args:
-            content.append(args)
-        return '_'.join(content)
-
-    def execute(self, image, query):
-        return image
-
-
-class DummyOperation(Operation):
-    pass
-
-
-class CommandOperation(Operation):
-    def file_operation(self, image, query, command):
-        import tempfile, subprocess
-        suffix = '.%s' % os.path.basename(query.source).split('.', -1)[1]
-        whfile, wfile = tempfile.mkstemp(suffix)
-        image.save(wfile)
-        rhfile, rfile = tempfile.mkstemp(suffix)
-        proc = subprocess.Popen(command % {'infile': wfile, 'outfile': rfile}, shell=True)
-        proc.wait()
-        image = Image.open(rfile)
-        return image
-
-
-class Enhance(Operation):
-    args = ('enhancer', 'factor')
-
-    def execute(self, image, query):
-        enhancer = self.enhancer(image)
-        return enhancer.enhance(self.factor)
-
-
-class Resize(Operation):
-    args = ('x', 'y', 'filter')
-    args_defaults = {
-        'x': None,
-        'y': None,
-        'filter': Image.ANTIALIAS,
-    }
-
-    def execute(self, image, query):
-        if self.x is None and self.y is None:
-            self.x, self.y = image.size
-        elif self.x is None:
-            orig_x, orig_y = image.size
-            ratio = float(self.y) / float(orig_y)
-            self.x = int(orig_x * ratio)
-        elif self.y is None:
-            orig_x, orig_y = image.size
-            ratio = float(self.x) / float(orig_x)
-            self.y = int(orig_y * ratio)
-        return image.resize((self.x, self.y), self.filter)
-
-
-class Scale(Operation):
-    args = ('x', 'y', 'filter')
-    args_defaults = {
-        'filter': Image.ANTIALIAS,
-    }
-
-    def execute(self, image, query):
-        image = image.copy()
-        image.thumbnail((self.x, self.y), self.filter)
-        return image
-
-
-class Invert(Operation):
-    args = ('keep_alpha',)
-    def execute(self, image, query):
-        import ImageChops
-        if self.keep_alpha:
-            image = image.convert('RGBA')
-            channels = list(image.split())
-            for i in xrange(0, 3):
-                channels[i] = ImageChops.invert(channels[i])
-            return Image.merge('RGBA', channels)
-        else:
-            return ImageChops.invert(image)
-
-
-class Grayscale(Operation):
-    def execute(self, image, query):
-        import ImageOps
-        return ImageOps.grayscale(image)
-
-
-class Flip(Operation):
-    def execute(self, image, query):
-        import ImageOps
-        return ImageOps.flip(image)
-
-
-class Mirror(Operation):
-    def execute(self, image, query):
-        import ImageOps
-        return ImageOps.mirror(image)
-
-
-class Blur(Operation):
-    args = ('amount',)
-    def execute(self, image, query):
-        import ImageFilter
-        for i in xrange(0, self.amount):
-            image = image.filter(ImageFilter.BLUR)
-        return image
-
-
-class Filter(Operation):
-    args = ('filter',)
-    def execute(self, image, query):
-        return image.filter(self.filter)
-
-
-class Crop(Operation):
-    args = ('x', 'y', 'w', 'h')
-    def execute(self, image, query):
-        box = (
-            self.x,
-            self.y,
-            self.x + self.w,
-            self.y + self.h,
-        )
-        return image.crop(box)
-
-
-class Fit(Operation):
-    args = ('x', 'y', 'centering', 'method')
-    args_defaults = {
-        'method': Image.ANTIALIAS,
-        'centering': (0.5, 0.5),
-    }
-    def execute(self, image, query):
-        import ImageOps
-        return ImageOps.fit(image, (self.x, self.y), self.method, centering=self.centering)
-
-
-class Blank(Operation):
-    args = ('x','y','color','mode')
-    args_defaults = {
-        'x': None,
-        'y': None,
-        'color': None,
-        'mode': 'RGBA',
-    }
-    def execute(self, image, query):
-        x, y = self.x, self.y
-        if x is None:
-            x = image.size[0]
-        if y is None:
-            y = image.size[1]
-        if self.color:
-            return Image.new(self.mode, (x, y), self.color)
-        else:
-            return Image.new(self.mode, (x, y))
-
-
-class Paste(Operation):
-    args = ('image','x','y','storage')
-    def execute(self, image, query):
-        athor = get_image_object(self.image, self.storage)
-        x2, y2 = athor.size
-        x1 = get_coords(image.size[0], athor.size[0], self.x)
-        y1 = get_coords(image.size[1], athor.size[1], self.y)
-        box = (
-            x1,
-            y1,
-            x1 + x2,
-            y1 + y2,
-        )
-        # Note that if you paste an "RGBA" image, the alpha band is ignored.
-        # You can work around this by using the same image as both source image and mask.
-        image = image.copy()
-        if athor.mode == 'RGBA':
-            if image.mode == 'RGBA':
-                import ImageChops
-                channels = image.split()
-                alpha = channels[3]
-                image = Image.merge('RGB', channels[0:3])
-                athor_channels = athor.split()
-                athor_alpha = athor_channels[3]
-                athor = Image.merge('RGB', athor_channels[0:3])
-                image.paste(athor, box, mask=athor_alpha)
-                # merge alpha
-                athor_image_alpha = Image.new('L', image.size, color=0)
-                athor_image_alpha.paste(athor_alpha, box)
-                new_alpha = ImageChops.add(alpha, athor_image_alpha)
-                image = Image.merge('RGBA', image.split() + (new_alpha,))
-            else:
-                image.paste(athor, box, mask=athor)
-        else:
-            image.paste(athor, box)
-        return image
-
-
-class Background(Operation):
-    args = ('image','x','y','storage')
-    def execute(self, image, query):
-        background = Image.new('RGBA', image.size, color=(0,0,0,0))
-        athor = get_image_object(self.image, self.storage)
-        x2,y2 = image.size
-        x1 = get_coords(image.size[0], athor.size[0], self.x)
-        y1 = get_coords(image.size[1], athor.size[1], self.y)
-        box = (
-            x1,
-            y1,
-            x1 + x2,
-            y1 + y2,
-        )
-        background.paste(athor, box, mask=athor)
-        background.paste(image, None, mask=image)
-        return background
-
-
-class Convert(Operation):
-    args = ('mode', 'matrix')
-    args_defaults = {
-        'matrix': None,
-    }
-    def execute(self, image, query):
-        if self.matrix:
-            return image.convert(self.mode, self.matrix)
-        else:
-            return image.convert(self.mode)
-
-
-class GetChannel(Operation):
-    args = ('channel',)
-    channel_map = {
-        'red': 0,
-        'green': 1,
-        'blue': 2,
-        'alpha': 3,
-    }
-    def execute(self, image, query):
-        image = image.convert('RGBA')
-        alpha = image.split()[self.channel_map[self.channel]]
-        return Image.merge('RGBA', (alpha, alpha, alpha, alpha))
-
-
-class ApplyAlpha(GetChannel):
-    args = ('alphamap',)
-    def execute(self, image, query):
-        # TODO: Use putalpha(band)?
-        image = image.convert('RGBA')
-        alphamap = get_image_object(self.alphamap).convert('RGBA')
-        data = image.split()[self.channel_map['red']:self.channel_map['alpha']]
-        alpha = alphamap.split()[self.channel_map['alpha']]
-        alpha = alpha.resize(image.size, Image.ANTIALIAS)
-        return Image.merge('RGBA', data + (alpha,))
-
-
-class Blend(Operation):
-    args = ('image','alpha','storage')
-    channel_map = {
-        'alpha': 0.5,
-    }
-    def execute(self, image, query):
-        athor = get_image_object(self.image, self.storage)
-        return Image.blend(image, athor, self.alpha)
-
-
-class Text(Operation):
-    args = ('text','x','y','font','size','fill')
-    args_defaults = {
-        'size': None,
-        'fill': None,
-    }
-    def execute(self, image, query):
-        image = image.copy()
-        import ImageDraw
-        font = get_font_object(self.font, self.size)
-        size, offset = ImageQuery.img_textbox(self.text, self.font, self.size)
-        x = get_coords(image.size[0], size[0], self.x) + offset[0]
-        y = get_coords(image.size[1], size[1], self.y) + offset[1]
-        draw = ImageDraw.Draw(image)
-        text = self.text
-        # HACK
-        if Image.VERSION == '1.1.5' and isinstance(text, unicode):
-            text = text.encode('utf-8')
-        draw.text((x, y), text, font=font, fill=self.fill)
-        return image
-
-
-# TODO: enhance text operations
-
-class TextImage(Operation):
-    args = ('text', 'font', 'size', 'mode')
-    args_defaults = {
-        'size': None,
-        'fill': None,
-    }
-    def execute(self, image, query):
-        font = get_font_object(self.font, self.size)
-        font.getmask(self.text)
-
-
-class FontDefaults(Operation):
-    args = ('font', 'size', 'fill')
-
-    @property
-    def attrs(self):
-        return {
-            'font': self.font,
-            'size': self.size,
-            'fill': self.fill,
-        }
-
-
-class Composite(Operation):
-    args = ('image','mask','storage')
-    def execute(self, image, query):
-        athor = get_image_object(self.image, self.storage)
-        mask = get_image_object(self.mask, self.storage)
-        return Image.composite(image, athor, mask)
-
-
-class Offset(Operation):
-    args = ('x','y')
-    def execute(self, image, query):
-        import ImageChops
-        return ImageChops.offset(image, self.x, self.y)
-
-
-class Padding(Operation):
-    args = ('left','top','right','bottom','color')
-    def execute(self, image, query):
-        left, top, right, bottom = self.left, self.top, self.right, self.bottom
-        color = self.color
-        if top is None:
-            top = left
-        if right is None:
-            right = left
-        if bottom is None:
-            bottom = top
-        if color is None:
-            color = (0,0,0,0)
-        new_width = left + right + image.size[0]
-        new_height = top + bottom + image.size[1]
-        new = Image.new('RGBA', (new_width, new_height), color=color)
-        new.paste(image, (left, top))
-        return new
-
-
-class Opacity(Operation):
-    args = ('opacity',)
-    def execute(self, image, query):
-        opacity = int(self.opacity * 255)
-        background = Image.new('RGBA', image.size, color=(0,0,0,0))
-        mask = Image.new('RGBA', image.size, color=(0,0,0,opacity))
-        box = (0,0) + image.size
-        background.paste(image, box, mask)
-        return background
-
-
-class Clip(Operation):
-    args = ('start','end',)
-    args_defaults = {
-        'start': None,
-        'end': None,
-    }
-    def execute(self, image, query):
-        start = self.start
-        if start is None:
-            start = (0, 0)
-        end = self.end
-        if end is None:
-            end = image.size
-        new = image.crop(self.start + self.end)
-        new.load() # crop is a lazy operation, see docs
-        return new
-
-
 class RawImageQuery(object):
     """ Base class for raw handling of images, needs an loaded PIL image """
     def __init__(self, image, source=None, storage=default_storage, cache_storage=None):
@@ -604,7 +162,17 @@ class RawImageQuery(object):
     def _exists(self):
         if self.source and \
             self.cache_storage.exists(self._path()):
-                # TODO: if storage.path() exists: check filemtime?
+                # TODO: Really support local paths this way?
+                try:
+                    source_path = self.storage.path(self.source)
+                    cache_path = self.cache_storage.path(self._path())
+                    if os.path.exists(source_path) and \
+                        os.path.exists(cache_path) and \
+                        os.path.getmtime(source_path) > \
+                        os.path.getmtime(cache_path):
+                            return False
+                except NotImplementedError:
+                    pass
                 return True
         return False
 
@@ -614,7 +182,6 @@ class RawImageQuery(object):
 
     def _create_raw(self, allow_reopen=True):
         if allow_reopen and self._exists(): # Load existing image if possible
-            # TODO: Check if this has side-effects!
             return Image.open(self.cache_storage.open(self._name(), 'rb'))
         return self._apply_operations(self.image)
 
@@ -680,62 +247,49 @@ class RawImageQuery(object):
     # Query methods ########################
     ########################################
 
-    def blank(self,x=None,y=None,color=None):
+    def append(self, op):
         q = self._clone()
-        q = q._append(Blank(x,y,color))
+        q = q._append(op)
         return q
+
+    def blank(self,x=None,y=None,color=None):
+        return self.append(operation.Blank(x,y,color))
 
     def paste(self, image, x=0, y=0, storage=None):
         '''
         Pastes the given image above the current one.
         '''
-        q = self._clone()
         if storage is None:
             storage = self.storage
-        q = q._append(Paste(image,x,y,storage))
-        return q
+        return self.append(operation.Paste(image,x,y,storage))
 
     def background(self, image, x=0, y=0, storage=None):
         '''
         Same as paste but puts the given image behind the current one.
         '''
-        q = self._clone()
         if storage is None:
             storage = self.storage
-        q = q._append(Background(image,x,y,storage))
-        return q
+        return self.append(operation.Background(image,x,y,storage))
 
     def blend(self, image, alpha=0.5, storage=None):
-        q = self._clone()
         if storage is None:
             storage = self.storage
-        q = q._append(Blend(image,alpha,storage))
-        return q
+        return self.append(operation.Blend(image,alpha,storage))
 
     def resize(self, x=None, y=None, filter=Image.ANTIALIAS):
-        q = self._clone()
-        q = q._append(Resize(x,y,filter))
-        return q
+        return self.append(operation.Resize(x,y,filter))
 
     def scale(self, x, y, filter=Image.ANTIALIAS):
-        q = self._clone()
-        q = q._append(Scale(x,y,filter))
-        return q
+        return self.append(operation.Scale(x,y,filter))
 
     def crop(self, x, y, w, h):
-        q = self._clone()
-        q = q._append(Crop(x,y,w,h))
-        return q
+        return self.append(operation.Crop(x,y,w,h))
 
     def fit(self, x, y, centering=(0.5,0.5), method=Image.ANTIALIAS):
-        q = self._clone()
-        q = q._append(Fit(x,y,centering,method))
-        return q
+        return self.append(operation.Fit(x,y,centering,method))
 
     def enhance(self, enhancer, factor):
-        q = self._clone()
-        q = q._append(Enhance(enhancer, factor))
-        return q
+        return self.append(operation.Enhance(enhancer, factor))
 
     def sharpness(self, amount=2.0):
         '''
@@ -749,54 +303,77 @@ class RawImageQuery(object):
 
     def blur(self, amount=1):
         #return self.sharpness(1-(amount-1))
-        q = self._clone()
-        q = q._append(Blur(amount))
-        return q
+        return self.append(operation.Blur(amount))
 
     def filter(self, image_filter):
-        q = self._clone()
-        q = q._append(Filter(image_filter))
-        return q
+        return self.append(operation.Filter(image_filter))
     
     def truecolor(self):
-        q = self._clone()
-        q = q._append(Convert('RGBA'))
-        return q
+        return self.append(operation.Convert('RGBA'))
 
     def invert(self, keep_alpha=True):
-        q = self._clone()
-        q = q._append(Invert(keep_alpha))
-        return q
+        return self.append(operation.Invert(keep_alpha))
 
     def flip(self):
-        q = self._clone()
-        q = q._append(Flip())
-        return q
+        return self.append(operation.Flip())
 
     def mirror(self):
-        q = self._clone()
-        q = q._append(Mirror())
-        return q
+        return self.append(operation.Mirror())
 
     def grayscale(self):
-        q = self._clone()
-        q = q._append(Grayscale())
-        return q
+        return self.append(operation.Grayscale())
 
     def alpha(self):
-        q = self._clone()
-        q = q._append(GetChannel('alpha'))
-        return q
+        return self.append(operation.GetChannel('alpha'))
 
     def applyalpha(self, alphamap):
+        return self.append(operation.ApplyAlpha(alphamap))
+
+    def composite(self, image, mask, storage=None):
+        if storage is None:
+            storage = self.storage
+        return self.append(operation.Composite(image, mask, storage))
+
+    def offset(self, x, y):
+        return self.append(operation.Offset(x, y))
+
+    def padding(self, left, top=None, right=None, bottom=None, color=None):
+        return self.append(operation.Padding(left, top, right, bottom, color))
+
+    def opacity(self, opacity):
+        return self.append(operation.Opacity(opacity))
+
+    def clip(self, start=None, end=None):
+        return self.append(operation.Clip(start, end))
+
+    def shadow(self, color):
+        #mask = self.alpha().invert()
+        #return self.blank(color=None).composite(self.blank(color=color), mask)
+        return self.blank(color=color).applyalpha(self)
+
+    def makeshadow(self, x, y, color, opacity=1, blur=1):
+        shadow = self.shadow(color).opacity(opacity).blur(blur)
+        return self.background(shadow, x, y)
+
+    def save(self, name=None, storage=None, **options):
+        # create a clone for saving (thus we might change its state)
         q = self._clone()
-        q = q._append(ApplyAlpha(alphamap))
+        if storage:
+            q.cache_storage = storage
+        q._create(name, **options)
+        # return new clone
+        return self._clone()
+
+    def query_name(self, value):
+        q = self._clone()
+        q = q._append(None)
+        q.query.name(value)
         return q
 
+    # text operations
+
     def text(self, text, x, y, font, size=None, fill=None):
-        q = self._clone()
-        q = q._append(Text(text, x, y, font, size, fill))
-        return q
+        return self.append(operation.Text(text, x, y, font, size, fill))
 
     @staticmethod
     def textbox(text, font, size=None):
@@ -843,55 +420,9 @@ class RawImageQuery(object):
             text = text.encode('utf-8')
         draw.text(offset, text, font=font, fill=fill)
         return RawImageQuery(fontimage, storage=storage)
-
-    def composite(self, image, mask, storage=None):
-        q = self._clone()
-        if storage is None:
-            storage = self.storage
-        q = q._append(Composite(image, mask, storage))
-        return q
-
-    def offset(self, x, y):
-        q = self._clone()
-        q = q._append(Offset(x, y))
-        return q
-
-    def padding(self, left, top=None, right=None, bottom=None, color=None):
-        q = self._clone()
-        q = q._append(Padding(left, top, right, bottom, color))
-        return q
-
-    def opacity(self, opacity):
-        q = self._clone()
-        q = q._append(Opacity(opacity))
-        return q
-
-    def clip(self, start=None, end=None):
-        q = self._clone()
-        q = q._append(Clip(start, end))
-        return q
-
-    def shadow(self, color):
-        #mask = self.alpha().invert()
-        #return self.blank(color=None).composite(self.blank(color=color), mask)
-        return self.blank(color=color).applyalpha(self)
-
-    def makeshadow(self, x, y, color, opacity=1, blur=1):
-        shadow = self.shadow(color).opacity(opacity).blur(blur)
-        return self.background(shadow, x, y)
-
-    def save(self, name=None, **options):
-        self._create(name, **options)
-        q = self._clone()
-        return q
-
-    def query_name(self, value):
-        q = self._clone()
-        q = q._append(None)
-        q.query.name(value)
-        return q
-
+    
     # methods which does not return a new ImageQuery instance
+    
     def mimetype(self):
         format = self.raw().format
         try:

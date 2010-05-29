@@ -1,5 +1,6 @@
 from django import template
 from imagequery import ImageQuery, format
+from imagequery.utils import get_imagequery
 from django.db.models.fields.files import ImageFieldFile
 from django.utils.encoding import smart_unicode
 
@@ -24,12 +25,6 @@ def parse_attrs(attrs):
             except ValueError:
                 args.append(parse_value(attr))
     return args, kwargs
-
-def get_imagequery(value):
-    if isinstance(value, ImageQuery):
-        return value
-    # value must be the path to an image or an image field (model attr)
-    return ImageQuery(value)
 
 def imagequerify(func):
     from functools import wraps
@@ -110,7 +105,6 @@ class ImageFormatNode(template.Node):
             return result.url()
 
 
-# TODO: Support storage engines? Template-filter for changing some ImageQuery instead?
 @register.tag
 def image_format(parser, token):
     """
@@ -123,6 +117,13 @@ def image_format(parser, token):
     Examples:
     {% image_format "some_format" foo.image %}
     {% image_format "some_format" foo.image as var %}
+    
+    This tag does not support storage by design. If you want to use different
+    storage engines here you have to:
+     * pass in an ImageQuery instance
+     * write your own template filter that constructs an ImageQuery instance
+       (including storage settings)
+     * pass in an FieldImage
     """
     bits = token.split_contents()
     tag_name = bits[0]

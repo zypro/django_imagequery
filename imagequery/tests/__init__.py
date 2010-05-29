@@ -34,6 +34,8 @@ class ImageQueryTest(TestCase):
             self.sample_dir)
         self.tmpstorage_dir = tempfile.mkdtemp()
         self.tmpstorage = FileSystemStorage(location=self.tmpstorage_dir)
+        self.tmpstorage_save_dir = tempfile.mkdtemp()
+        self.tmpstorage_save = FileSystemStorage(location=self.tmpstorage_save_dir)
         self.registered_formats = format._formats
         format._formats = {}
         format.register('test', TestFormat)
@@ -77,12 +79,20 @@ class ImageQueryTest(TestCase):
         iq.grayscale().save(self.tmp('test.jpg'))
         self.assert_(self.compare(self.tmp('test.jpg'), self.sample('results/django_colors_gray.jpg')))
 
-    def test_load_from_custom_storage(self):
+    def test_custom_storage(self):
         shutil.copyfile(self.sample('django_colors.jpg'), os.path.join(self.tmpstorage_dir, 'customstorage.jpg'))
         # load from custom tmp storage
         iq = ImageQuery('customstorage.jpg', storage=self.tmpstorage)
+        
         iq.grayscale().save('save.jpg')
         self.assert_(self.compare(os.path.join(self.tmpstorage_dir, 'save.jpg'), self.sample('results/django_colors_gray.jpg')))
+        
+        iq.grayscale().save('save.jpg', storage=self.tmpstorage_save)
+        self.assert_(self.compare(os.path.join(self.tmpstorage_save_dir, 'save.jpg'), self.sample('results/django_colors_gray.jpg')))
+        
+        iq = ImageQuery('customstorage.jpg', storage=self.tmpstorage, cache_storage=self.tmpstorage_save)
+        iq.grayscale().save('save.jpg')
+        self.assert_(self.compare(os.path.join(self.tmpstorage_save_dir, 'save.jpg'), self.sample('results/django_colors_gray.jpg')))
 
     def test_operations(self):
         dj = ImageQuery(self.sample('django_colors.jpg'))
