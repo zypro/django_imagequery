@@ -1,5 +1,5 @@
 from django import template
-from imagequery import ImageQuery, formats
+from imagequery import ImageQuery, format
 from django.db.models.fields.files import ImageFieldFile
 from django.utils.encoding import smart_unicode
 
@@ -99,15 +99,15 @@ class ImageFormatNode(template.Node):
         except template.VariableDoesNotExist:
             return ''
         try:
-            format_cls = formats.get(formatname)
-        except formats.FormatDoesNotExist:
+            format_cls = format.get(formatname)
+        except format.FormatDoesNotExist:
             return ''
-        format = format_cls(get_imagequery(image))
+        result = format_cls(get_imagequery(image))
         if self.name:
-            context[self.name] = format
+            context[self.name] = result
             return ''
         else:
-            return format.url()
+            return result.url()
 
 
 # TODO: Support storage engines? Template-filter for changing some ImageQuery instead?
@@ -116,7 +116,7 @@ def image_format(parser, token):
     """
     Allows you to use predefined Format's for changing your images according to
     predefined sets of operations. Format's must be registered for using them
-    here (using imagequery.formats.register("name", MyFormat).
+    here (using imagequery.format.register("name", MyFormat).
     
     You can get the resulting Format instance as a context variable.
     
