@@ -7,7 +7,7 @@ from django.conf import settings
 from django.core.files.storage import FileSystemStorage
 from django.db import models
 from imagequery.query import ImageQuery, RawImageQuery, NewImageQuery
-from imagequery import format
+from imagequery import formats
 
 
 class ImageModel(models.Model):
@@ -18,7 +18,7 @@ class ImageModel(models.Model):
         return self.name
 
 
-class TestFormat(format.Format):
+class TestFormat(formats.Format):
     def execute(self, qs):
         return qs.grayscale().query_name('test_format')
 
@@ -36,13 +36,13 @@ class ImageQueryTest(TestCase):
         self.tmpstorage = FileSystemStorage(location=self.tmpstorage_dir)
         self.tmpstorage_save_dir = tempfile.mkdtemp()
         self.tmpstorage_save = FileSystemStorage(location=self.tmpstorage_save_dir)
-        self.registered_formats = format._formats
-        format._formats = {}
-        format.register('test', TestFormat)
+        self.registered_formats = formats._formats
+        formats._formats = {}
+        formats.register('test', TestFormat)
 
     def tearDown(self):
         shutil.rmtree(self.tmp_dir)
-        format._formats = self.registered_formats
+        formats._formats = self.registered_formats
     
     def sample(self, path):
         return os.path.join(self.sample_dir, path)

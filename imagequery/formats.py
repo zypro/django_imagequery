@@ -22,9 +22,9 @@ class Format(object):
     the execute() method.
     
     Example:
-    from imagequery import format
+    from imagequery import formats
     
-    class MyShinyNewFormat(format.Format):
+    class MyShinyNewFormat(formats.Format):
         def execute(self, imagequery):
             # it's always good to privide a query name, so you can easily
             # empty the cache for the format
@@ -33,7 +33,7 @@ class Format(object):
     
     After defining your format you can register it, this is mainly useful when
     using the format inside the templates:
-    format.register('shiny', MyShinyNewFormat)
+    formats.register('shiny', MyShinyNewFormat)
     Inside the template (outputs the url):
     {% load imagequery_tags %}{% image_format "shiny" obj.image %}
     

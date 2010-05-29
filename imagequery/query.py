@@ -5,7 +5,7 @@ from django.conf import settings
 from django.utils.encoding import smart_str
 from django.core.files.base import File, ContentFile
 from django.db.models.fields.files import FieldFile
-from imagequery import operation
+from imagequery import operations
 from imagequery.settings import CACHE_DIR, DEFAULT_OPTIONS, default_storage,\
     default_cache_storage
 from imagequery.utils import get_image_object, get_font_object, get_coords
@@ -253,7 +253,7 @@ class RawImageQuery(object):
         return q
 
     def blank(self,x=None,y=None,color=None):
-        return self.append(operation.Blank(x,y,color))
+        return self.append(operations.Blank(x,y,color))
 
     def paste(self, image, x=0, y=0, storage=None):
         '''
@@ -261,7 +261,7 @@ class RawImageQuery(object):
         '''
         if storage is None:
             storage = self.storage
-        return self.append(operation.Paste(image,x,y,storage))
+        return self.append(operations.Paste(image,x,y,storage))
 
     def background(self, image, x=0, y=0, storage=None):
         '''
@@ -269,27 +269,27 @@ class RawImageQuery(object):
         '''
         if storage is None:
             storage = self.storage
-        return self.append(operation.Background(image,x,y,storage))
+        return self.append(operations.Background(image,x,y,storage))
 
     def blend(self, image, alpha=0.5, storage=None):
         if storage is None:
             storage = self.storage
-        return self.append(operation.Blend(image,alpha,storage))
+        return self.append(operations.Blend(image,alpha,storage))
 
     def resize(self, x=None, y=None, filter=Image.ANTIALIAS):
-        return self.append(operation.Resize(x,y,filter))
+        return self.append(operations.Resize(x,y,filter))
 
     def scale(self, x, y, filter=Image.ANTIALIAS):
-        return self.append(operation.Scale(x,y,filter))
+        return self.append(operations.Scale(x,y,filter))
 
     def crop(self, x, y, w, h):
-        return self.append(operation.Crop(x,y,w,h))
+        return self.append(operations.Crop(x,y,w,h))
 
     def fit(self, x, y, centering=(0.5,0.5), method=Image.ANTIALIAS):
-        return self.append(operation.Fit(x,y,centering,method))
+        return self.append(operations.Fit(x,y,centering,method))
 
     def enhance(self, enhancer, factor):
-        return self.append(operation.Enhance(enhancer, factor))
+        return self.append(operations.Enhance(enhancer, factor))
 
     def sharpness(self, amount=2.0):
         '''
@@ -303,48 +303,48 @@ class RawImageQuery(object):
 
     def blur(self, amount=1):
         #return self.sharpness(1-(amount-1))
-        return self.append(operation.Blur(amount))
+        return self.append(operations.Blur(amount))
 
     def filter(self, image_filter):
-        return self.append(operation.Filter(image_filter))
+        return self.append(operations.Filter(image_filter))
     
     def truecolor(self):
-        return self.append(operation.Convert('RGBA'))
+        return self.append(operations.Convert('RGBA'))
 
     def invert(self, keep_alpha=True):
-        return self.append(operation.Invert(keep_alpha))
+        return self.append(operations.Invert(keep_alpha))
 
     def flip(self):
-        return self.append(operation.Flip())
+        return self.append(operations.Flip())
 
     def mirror(self):
-        return self.append(operation.Mirror())
+        return self.append(operations.Mirror())
 
     def grayscale(self):
-        return self.append(operation.Grayscale())
+        return self.append(operations.Grayscale())
 
     def alpha(self):
-        return self.append(operation.GetChannel('alpha'))
+        return self.append(operations.GetChannel('alpha'))
 
     def applyalpha(self, alphamap):
-        return self.append(operation.ApplyAlpha(alphamap))
+        return self.append(operations.ApplyAlpha(alphamap))
 
     def composite(self, image, mask, storage=None):
         if storage is None:
             storage = self.storage
-        return self.append(operation.Composite(image, mask, storage))
+        return self.append(operations.Composite(image, mask, storage))
 
     def offset(self, x, y):
-        return self.append(operation.Offset(x, y))
+        return self.append(operations.Offset(x, y))
 
     def padding(self, left, top=None, right=None, bottom=None, color=None):
-        return self.append(operation.Padding(left, top, right, bottom, color))
+        return self.append(operations.Padding(left, top, right, bottom, color))
 
     def opacity(self, opacity):
-        return self.append(operation.Opacity(opacity))
+        return self.append(operations.Opacity(opacity))
 
     def clip(self, start=None, end=None):
-        return self.append(operation.Clip(start, end))
+        return self.append(operations.Clip(start, end))
 
     def shadow(self, color):
         #mask = self.alpha().invert()
@@ -373,7 +373,7 @@ class RawImageQuery(object):
     # text operations
 
     def text(self, text, x, y, font, size=None, fill=None):
-        return self.append(operation.Text(text, x, y, font, size, fill))
+        return self.append(operations.Text(text, x, y, font, size, fill))
 
     @staticmethod
     def textbox(text, font, size=None):
