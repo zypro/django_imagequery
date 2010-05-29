@@ -2,3 +2,6 @@ lib
 bin
 include
 .*\.pyc
+dist
+django_imagequery.egg-info
+build
