@@ -1,6 +1,4 @@
  * setup.py
  * enhance tests
- * docs
- * allow imagequery.save(..., storage=...)
- * include Format-class
+ * README
 
