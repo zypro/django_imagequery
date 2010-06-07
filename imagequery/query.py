@@ -378,11 +378,13 @@ class RawImageQuery(object):
     @staticmethod
     def textbox(text, font, size=None):
         font = get_font_object(font, size)
+        text = smart_str(text)
         return font.getsize(text)
 
     @staticmethod
     def img_textbox(text, font, size=None):
         font = get_font_object(font, size)
+        text = smart_str(text)
         try:
             imgsize, offset = font.font.getsize(text)
             if isinstance(imgsize, int) and isinstance(offset, int):
@@ -403,6 +405,7 @@ class RawImageQuery(object):
     def textimg(text, font, size=None, fill=None, padding=0, mode='RGBA', storage=default_storage):
         import ImageDraw
         font = get_font_object(font, size)
+        text = smart_str(text)
         imgsize, offset = ImageQuery.img_textbox(text, font, size)
         bg = [0,0,0,0]
         # Workaround: Image perhaps is converted to RGB before pasting,
@@ -415,9 +418,6 @@ class RawImageQuery(object):
             offset = (offset[0] + padding, offset[1] + padding)
         fontimage = Image.new(mode, imgsize, tuple(bg))
         draw = ImageDraw.Draw(fontimage)
-        # HACK
-        if Image.VERSION == '1.1.5' and isinstance(text, unicode):
-            text = text.encode('utf-8')
         draw.text(offset, text, font=font, fill=fill)
         return RawImageQuery(fontimage, storage=storage)
     
