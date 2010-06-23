@@ -83,8 +83,8 @@ query_name = imagequery_filter('query_name')
 
 class ImageFormatNode(template.Node):
     def __init__(self, format, image, name):
-        self.format = template.Variable(format)
-        self.image = template.Variable(image)
+        self.format = format
+        self.image = image
         self.name = name
 
     def render(self, context):
@@ -130,8 +130,8 @@ def image_format(parser, token):
     values = bits[1:]
     if len(values) not in (2, 4):
         raise template.TemplateSyntaxError(u'%r tag needs two or four parameters.' % tag_name)
-    format = values[0]
-    image = values[1]
+    format = parser.compile_filter(values[0])
+    image = parser.compile_filter(values[1])
     name = None
     if len(values) == 5:
         if values[2] != 'as':
