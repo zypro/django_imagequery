@@ -10,7 +10,7 @@ def get_imagequery(value):
     # value must be the path to an image or an image field (model attr)
     return ImageQuery(value)
 
-def get_image_object(value, storage=default_storage):
+def _get_image_object(value, storage=default_storage):
     from imagequery import ImageQuery # late import to avoid circular import
     if isinstance(value, (ImageFile.ImageFile, Image.Image)):
         return value
@@ -20,6 +20,19 @@ def get_image_object(value, storage=default_storage):
         value.open('rb')
         return Image.open(value)
     return Image.open(storage.open(value, 'rb'))
+
+def get_image_object(value, storage=default_storage):
+    image = _get_image_object(value, storage)
+    # PIL Workaround:
+    # We avoid lazy loading here as ImageQuery already is lazy enough.
+    # In addition PIL does not always check if image is loaded, so not
+    # loading it here might break some code (for example ImageQuery.paste)
+    if not getattr(image, 'im', True):
+        try:
+            image.load()
+        except AttributeError:
+            pass
+    return image
 
 def get_font_object(value, size=None):
     import ImageFont

@@ -72,10 +72,7 @@ class Format(object):
     
     def url(self):
         """ like Imagequery: return the URL of the associated file """
-        try:
-            return self._execute().url()
-        except:
-            return None # TODO: Do this right.
+        return self._execute().url()
     
     def height(self):
         return self._execute().height()

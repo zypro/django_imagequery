@@ -102,7 +102,10 @@ class ImageFormatNode(template.Node):
             context[self.name] = format
             return ''
         else:
-            return format.url()
+            try:
+                return format.url()
+            except:
+                return ''
 
 
 @register.tag
