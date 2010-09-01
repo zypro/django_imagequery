@@ -3,6 +3,7 @@ from imagequery import ImageQuery, formats
 from imagequery.utils import get_imagequery
 from django.db.models.fields.files import ImageFieldFile
 from django.utils.encoding import smart_unicode
+from imagequery.settings import LAZY_FORMAT
 
 register = template.Library()
 
@@ -95,9 +96,16 @@ class ImageFormatNode(template.Node):
             return ''
         try:
             format_cls = formats.get(formatname)
-        except format.FormatDoesNotExist:
+        except formats.FormatDoesNotExist:
             return ''
-        format = format_cls(get_imagequery(image))
+        imagequery = get_imagequery(image)
+        format = format_cls(imagequery)
+        if LAZY_FORMAT and not self.name and not format._execute()._exists():
+            from imagequery.models import LazyFormat
+            lazy_format = LazyFormat(format=formatname)
+            lazy_format.query = imagequery
+            lazy_format.save()
+            return lazy_format.get_absolute_url()
         if self.name:
             context[self.name] = format
             return ''

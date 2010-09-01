@@ -20,3 +20,5 @@ else:
     # we use the image storage if default_cache_storage is None
     default_cache_storage = None
 
+LAZY_FORMAT = getattr(settings, 'IMAGEQUERY_LAZY_FORMAT', False)
+
