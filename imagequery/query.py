@@ -31,6 +31,7 @@ class QueryItem(object):
         self._previous = None
         self._evaluated_image = None
         self._name = None
+        self._format = None
         self.operation = operation
 
     def _get_previous(self):
@@ -70,6 +71,17 @@ class QueryItem(object):
         if self.operation is not None:
             attrs.update(self.operation.attrs)
         return attrs
+    
+    def format(self, value=None):
+        if value:
+            self._format = value
+            return value
+        item = self
+        while item:
+            if item._format:
+                return item._format
+            item = item._previous
+        return None
     
     def name(self, value=None):
         import hashlib
@@ -132,16 +144,38 @@ class RawImageQuery(object):
             md5 = hashlib.md5()
             md5.update(self.image.tostring())
             return '%s.png' % md5.hexdigest()
-
+    
+    def _format_extension(self, format):
+        try:
+            return self._reverse_extensions.get(format, '')
+        except AttributeError:
+            if not Image.EXTENSION:
+                Image.init()
+            self._reverse_extensions = {}
+            for ext, _format in Image.EXTENSION.iteritems():
+                self._reverse_extensions[_format] = ext
+            # some defaults for formats with multiple extensions
+            self._reverse_extensions.update({
+                'JPEG': '.jpg',
+                'MPEG': '.mpeg',
+                'TIFF': '.tiff',
+            })
+            return self._reverse_extensions.get(format, '')
+    
     def _name(self):
         if self.query.has_operations():
             hashval = self.query.name()
+            format = self.query.format()
             # TODO: Support windows?
             # TODO: Remove support for absolute path?
             if not self.source or self.source.startswith('/'):
-                return os.path.join(CACHE_DIR, hashval, self._basename())
+                name = self._basename()
             else:
-                return os.path.join(CACHE_DIR, hashval, self.source)
+                name = self.source
+            if format:
+                ext = self._format_extension(format)
+                name = os.path.splitext(name)[0] + ext
+            return os.path.join(CACHE_DIR, hashval, name)
         else:
             return self.source
 
@@ -194,9 +228,11 @@ class RawImageQuery(object):
                 name = self._path()
             name = smart_str(name)
             image = self._create_raw(allow_reopen=False)
-            format = self.image.format
+            format = self.query.format()
             if image.format:
                 format = image.format
+            elif not format:
+                format = self.image.format
             if not format:
                 if not Image.EXTENSION:
                     Image.init()
@@ -368,6 +404,17 @@ class RawImageQuery(object):
         q = self._clone()
         q = q._append(None)
         q.query.name(value)
+        return q
+
+    def image_format(self, value):
+        value = value.upper()
+        if not Image.EXTENSION:
+            Image.init()
+        if not value in Image.EXTENSION.values():
+            raise RuntimeError('invalid format')
+        q = self._clone()
+        q = q._append(None)
+        q.query.format(value)
         return q
 
     # text operations

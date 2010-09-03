@@ -98,7 +98,10 @@ class ImageFormatNode(template.Node):
             format_cls = formats.get(formatname)
         except formats.FormatDoesNotExist:
             return ''
-        imagequery = get_imagequery(image)
+        try:
+            imagequery = get_imagequery(image)
+        except IOError: # handle missing files
+            return ''
         format = format_cls(imagequery)
         if LAZY_FORMAT and not self.name and not format._execute()._exists():
             from imagequery.models import LazyFormat
