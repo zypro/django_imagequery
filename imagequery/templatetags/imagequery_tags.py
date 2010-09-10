@@ -3,7 +3,7 @@ from imagequery import ImageQuery, formats
 from imagequery.utils import get_imagequery
 from django.db.models.fields.files import ImageFieldFile
 from django.utils.encoding import smart_unicode
-from imagequery.settings import LAZY_FORMAT
+from imagequery.settings import ALLOW_LAZY_FORMAT, LAZY_FORMAT_DEFAULT
 
 register = template.Library()
 
@@ -83,10 +83,14 @@ query_name = imagequery_filter('query_name')
 
 
 class ImageFormatNode(template.Node):
-    def __init__(self, format, image, name):
+    def __init__(self, format, image, name, allow_lazy=None):
         self.format = format
         self.image = image
         self.name = name
+        if allow_lazy is None:
+            self.allow_lazy = LAZY_FORMAT_DEFAULT and ALLOW_LAZY_FORMAT
+        else:
+            self.allow_lazy = allow_lazy and ALLOW_LAZY_FORMAT
 
     def render(self, context):
         try:
@@ -103,7 +107,7 @@ class ImageFormatNode(template.Node):
         except IOError: # handle missing files
             return ''
         format = format_cls(imagequery)
-        if LAZY_FORMAT and not self.name and not format._execute()._exists():
+        if self.allow_lazy and not self.name and not format._execute()._exists():
             from imagequery.models import LazyFormat
             lazy_format = LazyFormat(format=formatname)
             lazy_format.query = imagequery
@@ -131,6 +135,8 @@ def image_format(parser, token):
     Examples:
     {% image_format "some_format" foo.image %}
     {% image_format "some_format" foo.image as var %}
+    {% image_format "some_format" foo.image lazy %}
+    {% image_format "some_format" foo.image nolazy %}
     
     This tag does not support storage by design. If you want to use different
     storage engines here you have to:
@@ -142,14 +148,24 @@ def image_format(parser, token):
     bits = token.split_contents()
     tag_name = bits[0]
     values = bits[1:]
-    if len(values) not in (2, 4):
-        raise template.TemplateSyntaxError(u'%r tag needs two or four parameters.' % tag_name)
+    if len(values) not in (2, 3, 4):
+        raise template.TemplateSyntaxError(u'%r tag needs two, three or four parameters.' % tag_name)
     format = parser.compile_filter(values[0])
     image = parser.compile_filter(values[1])
     name = None
-    if len(values) == 5:
-        if values[2] != 'as':
-            raise template.TemplateSyntaxError(u'%r tag: third parameter must be "as"' % tag_name)
-        name = values[3]
-    return ImageFormatNode(format, image, name)
+    allow_lazy = None
+    i = 2
+    while i < len(values):
+        if values[i] == 'as':
+            name = values[i + 1]
+            i = i + 2
+        elif values[i] == 'lazy':
+            allow_lazy = True
+            i = i + 1
+        elif values[i] == 'nolazy':
+            allow_lazy = False
+            i = i + 2
+        else:
+            raise template.TemplateSyntaxError(u'%r tag: parameter must be "as" or "lazy"/"nolazy"' % tag_name)
+    return ImageFormatNode(format, image, name, allow_lazy)
 

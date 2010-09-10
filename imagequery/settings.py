@@ -20,5 +20,7 @@ else:
     # we use the image storage if default_cache_storage is None
     default_cache_storage = None
 
-LAZY_FORMAT = getattr(settings, 'IMAGEQUERY_LAZY_FORMAT', False)
+ALLOW_LAZY_FORMAT = getattr(settings, 'IMAGEQUERY_ALLOW_LAZY_FORMAT', False)
+LAZY_FORMAT_DEFAULT = getattr(settings, 'IMAGEQUERY_LAZY_FORMAT_DEFAULT', False)
+LAZY_FORMAT_CLEANUP_TIME = getattr(settings, 'IMAGEQUERY_LAZY_FORMAT_CLEANUP_TIME', 86400) # one day
 
