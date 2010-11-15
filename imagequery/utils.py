@@ -1,4 +1,11 @@
-import Image, ImageFile
+try:
+    from PIL import Image
+    from PIL import ImageFile
+    from PIL import ImageFont
+except ImportError:
+    import Image
+    import ImageFile
+    import ImageFont
 from django.core.cache import cache
 from django.core.files.base import File
 from imagequery.settings import default_storage
@@ -35,7 +42,6 @@ def get_image_object(value, storage=default_storage):
     return image
 
 def get_font_object(value, size=None):
-    import ImageFont
     if isinstance(value, (ImageFont.ImageFont, ImageFont.FreeTypeFont)):
         return value
     if value[-4:].lower() in ('.ttf', '.otf'):

@@ -1,5 +1,16 @@
 import os
-import Image
+try:
+    from PIL import Image
+    from PIL import ImageChops
+    from PIL import ImageOps
+    from PIL import ImageFilter
+    from PIL import ImageDraw
+except ImportError:
+    import Image
+    import ImageChops
+    import ImageOps
+    import ImageFilter
+    import ImageDraw
 from imagequery.utils import get_image_object, get_font_object, get_coords
 
 
@@ -98,7 +109,6 @@ class Scale(Operation):
 class Invert(Operation):
     args = ('keep_alpha',)
     def execute(self, image, query):
-        import ImageChops
         if self.keep_alpha:
             image = image.convert('RGBA')
             channels = list(image.split())
@@ -111,26 +121,22 @@ class Invert(Operation):
 
 class Grayscale(Operation):
     def execute(self, image, query):
-        import ImageOps
         return ImageOps.grayscale(image)
 
 
 class Flip(Operation):
     def execute(self, image, query):
-        import ImageOps
         return ImageOps.flip(image)
 
 
 class Mirror(Operation):
     def execute(self, image, query):
-        import ImageOps
         return ImageOps.mirror(image)
 
 
 class Blur(Operation):
     args = ('amount',)
     def execute(self, image, query):
-        import ImageFilter
         for i in xrange(0, self.amount):
             image = image.filter(ImageFilter.BLUR)
         return image
@@ -161,7 +167,6 @@ class Fit(Operation):
         'centering': (0.5, 0.5),
     }
     def execute(self, image, query):
-        import ImageOps
         return ImageOps.fit(image, (self.x, self.y), self.method, centering=self.centering)
 
 
@@ -203,7 +208,6 @@ class Paste(Operation):
         image = image.copy()
         if athor.mode == 'RGBA':
             if image.mode == 'RGBA':
-                import ImageChops
                 channels = image.split()
                 alpha = channels[3]
                 image = Image.merge('RGB', channels[0:3])
@@ -297,7 +301,6 @@ class Text(Operation):
         'fill': None,
     }
     def execute(self, image, query):
-        import ImageDraw
         from imagequery import ImageQuery # late import to avoid circular import
         image = image.copy()
         font = get_font_object(self.font, self.size)
@@ -349,7 +352,6 @@ class Composite(Operation):
 class Offset(Operation):
     args = ('x','y')
     def execute(self, image, query):
-        import ImageChops
         return ImageChops.offset(image, self.x, self.y)
 
 

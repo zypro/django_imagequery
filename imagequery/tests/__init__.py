@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
 import os
 import shutil
-import Image
+try:
+    from PIL import Image
+except ImportError:
+    import Image
 from django.test import TestCase
 from django.conf import settings
 from django.core.files.storage import FileSystemStorage
@@ -12,7 +15,7 @@ from imagequery import formats
 
 class ImageModel(models.Model):
     name = models.CharField(max_length=50)
-    image = models.ImageField(upload_to='.')
+    image = models.ImageField(upload_to='.', max_length=255)
 
     def __unicode__(self):
         return self.name
@@ -62,7 +65,6 @@ class ImageQueryTest(TestCase):
         self.assert_(self.compare(self.tmp('test.jpg'), self.sample('results/django_colors_gray.jpg')))
 
     def test_load_open_image_file(self):
-        import Image
         iq = RawImageQuery(Image.open(self.sample('django_colors.jpg')))
         iq.grayscale().save(self.tmp('test.jpg'))
         self.assert_(self.compare(self.tmp('test.jpg'), self.sample('results/django_colors_gray.jpg')))

@@ -1,6 +1,15 @@
 import os
 import weakref
-import Image, ImageFile
+try:
+    from PIL import Image
+    from PIL import ImageFile
+    from PIL import ImageEnhance
+    from PIL import ImageDraw
+except ImportError:
+    import Image
+    import ImageFile
+    import ImageEnhance
+    import ImageDraw
 from django.conf import settings
 from django.utils.encoding import smart_str
 from django.core.files.base import File, ContentFile
@@ -334,7 +343,6 @@ class RawImageQuery(object):
             1.0 returns the original image
             > 1 increases the sharpness of the image
         '''
-        import ImageEnhance
         return self.enhance(ImageEnhance.Sharpness, amount)
 
     def blur(self, amount=1):
@@ -450,7 +458,6 @@ class RawImageQuery(object):
 
     @staticmethod
     def textimg(text, font, size=None, fill=None, padding=0, mode='RGBA', storage=default_storage):
-        import ImageDraw
         font = get_font_object(font, size)
         text = smart_str(text)
         imgsize, offset = ImageQuery.img_textbox(text, font, size)
