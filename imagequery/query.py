@@ -511,6 +511,9 @@ class RawImageQuery(object):
     def url(self):
         self._evaluate()
         return self._url()
+    
+    def apply_raw(self):
+        return self._apply_operations(self.image)
 
 
 class NewImageQuery(RawImageQuery):
