@@ -1,3 +1,4 @@
+from django.utils.encoding import smart_str
 import os
 try:
     from PIL import Image
@@ -308,10 +309,7 @@ class Text(Operation):
         x = get_coords(image.size[0], size[0], self.x) + offset[0]
         y = get_coords(image.size[1], size[1], self.y) + offset[1]
         draw = ImageDraw.Draw(image)
-        text = self.text
-        # HACK
-        if Image.VERSION == '1.1.5' and isinstance(text, unicode):
-            text = text.encode('utf-8')
+        text = smart_str(self.text)
         draw.text((x, y), text, font=font, fill=self.fill)
         return image
 
