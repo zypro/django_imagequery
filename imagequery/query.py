@@ -227,7 +227,51 @@ class RawImageQuery(object):
         if allow_reopen and self._exists(): # Load existing image if possible
             return Image.open(self.cache_storage.open(self._name(), 'rb'))
         return self._apply_operations(self.image)
-
+    
+    def _convert_image_mode(self, image, format):
+        # TODO: Run this again with all available modes
+        # TODO: Find out how to get all available modes ;-)
+        # >>> import Image
+        # >>> Image.init()
+        # >>> MODES = ('RGBA', 'RGB', 'CMYK', 'P', '1')
+        # >>> FOMATS = Image.EXTENSION.values()
+        # >>> i = Image.open('/some/image')
+        # >>> for f in FORMATS:
+        # ...     s = []
+        # ...     for m in MODES:
+        # ...             try:
+        # ...                     i.convert(m).save('foo', f)
+        # ...                     s.append(m)
+        # ...             except:
+        # ...                     pass
+        # ...     print "'" + f + "': ('" + "', '".join(s) + "'),"
+        # ... 
+        MODES = {
+            'JPEG': ('RGBA', 'RGB', 'CMYK', '1'),
+            'PCX': ('RGB', 'P', '1'),
+            'EPS': ('RGB', 'CMYK'),
+            'TIFF': ('RGBA', 'RGB', 'CMYK', 'P', '1'),
+            'GIF': ('RGBA', 'RGB', 'CMYK', 'P', '1'),
+            'PALM': ('P', '1'),
+            'PPM': ('RGBA', 'RGB', '1'),
+            'EPS': ('RGB', 'CMYK'),
+            'BMP': ('RGB', 'P', '1'),
+            'PPM': ('RGBA', 'RGB', '1'),
+            'PNG': ('RGBA', 'RGB', 'P', '1'),
+            'MSP': ('1'),
+            'IM': ('RGBA', 'RGB', 'CMYK', 'P', '1'),
+            'TGA': ('RGBA', 'RGB', 'P', '1'),
+            'XBM': ('1'),
+            'PDF': ('RGB', 'CMYK', 'P', '1'),
+            'TIFF': ('RGBA', 'RGB', 'CMYK', 'P', '1'),
+        }
+        if format and format in MODES:
+            if image.mode not in MODES[format]:
+                # convert to first mode in list, should be mode with most
+                # features
+                image = image.convert(MODES[format][0])
+        return image
+    
     def _create(self, name=None, **options):
         '''
         Recreate image. Does not check whether the image already exists.
@@ -255,6 +299,7 @@ class RawImageQuery(object):
             save_options.update(options)
             # options may raise errors
             # TODO: Check this
+            image = self._convert_image_mode(image, format)
             try:
                 image.save(self.cache_storage.open(name, 'wb'), format, **save_options)
             except TypeError:
