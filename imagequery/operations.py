@@ -39,10 +39,10 @@ class Operation(object):
 
     def __unicode__(self):
         content = [self.__class__.__name__]
-        args = '-'.join([str(getattr(self, key)) for key in self.args])
+        args = u'-'.join([unicode(getattr(self, key)) for key in self.args])
         if args:
             content.append(args)
-        return '_'.join(content)
+        return u'_'.join(content)
 
     def execute(self, image, query):
         return image

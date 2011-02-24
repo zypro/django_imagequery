@@ -11,17 +11,17 @@ from django.core.files.base import File
 from imagequery.settings import default_storage
 
 def get_imagequery(value):
-    from imagequery import ImageQuery # late import to avoid circular import
-    if isinstance(value, ImageQuery):
+    from imagequery import ImageQuery, RawImageQuery # late import to avoid circular import
+    if isinstance(value, RawImageQuery):
         return value
     # value must be the path to an image or an image field (model attr)
     return ImageQuery(value)
 
 def _get_image_object(value, storage=default_storage):
-    from imagequery import ImageQuery # late import to avoid circular import
+    from imagequery import RawImageQuery # late import to avoid circular import
     if isinstance(value, (ImageFile.ImageFile, Image.Image)):
         return value
-    if isinstance(value, ImageQuery):
+    if isinstance(value, RawImageQuery):
         return value.raw()
     if isinstance(value, File):
         value.open('rb')

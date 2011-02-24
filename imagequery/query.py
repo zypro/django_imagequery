@@ -108,7 +108,7 @@ class QueryItem(object):
                 altered = True
                 break
             if item.operation:
-                val.update(unicode(item))
+                val.update(smart_str(unicode(item)))
                 altered = True
             item = item._previous
         if altered:
@@ -204,11 +204,11 @@ class RawImageQuery(object):
 
     def _exists(self):
         if self.source and \
-            self.cache_storage.exists(self._path()):
+            self.cache_storage.exists(self._name()):
                 # TODO: Really support local paths this way?
                 try:
                     source_path = self.storage.path(self.source)
-                    cache_path = self.cache_storage.path(self._path())
+                    cache_path = self._path()
                     if os.path.exists(source_path) and \
                         os.path.exists(cache_path) and \
                         os.path.getmtime(source_path) > \
@@ -502,16 +502,17 @@ class RawImageQuery(object):
         )
 
     @staticmethod
-    def textimg(text, font, size=None, fill=None, padding=0, mode='RGBA', storage=default_storage):
+    def textimg(text, font, size=None, fill=None, padding=0, mode='RGBA', bg=None, storage=default_storage):
         font = get_font_object(font, size)
         text = smart_str(text)
         imgsize, offset = ImageQuery.img_textbox(text, font, size)
-        bg = [0,0,0,0]
-        # Workaround: Image perhaps is converted to RGB before pasting,
-        # black background draws dark outline around text
-        if fill:
-            for i in xrange(0, min(len(fill), 3)):
-                bg[i] = fill[i]
+        if bg is None:
+            bg = [0,0,0,0]
+            # Workaround: Image perhaps is converted to RGB before pasting,
+            # black background draws dark outline around text
+            if fill:
+                for i in xrange(0, min(len(fill), 3)):
+                    bg[i] = fill[i]
         if padding:
             imgsize = (imgsize[0] + padding * 2, imgsize[1] + padding * 2)
             offset = (offset[0] + padding, offset[1] + padding)
@@ -542,8 +543,8 @@ class RawImageQuery(object):
     def size(self):
         return self.raw().size
 
-    def raw(self):
-        return self._create_raw()
+    def raw(self, allow_reopen=True):
+        return self._create_raw(allow_reopen=allow_reopen)
 
     def name(self):
         self._evaluate()
@@ -556,9 +557,6 @@ class RawImageQuery(object):
     def url(self):
         self._evaluate()
         return self._url()
-    
-    def apply_raw(self):
-        return self._apply_operations(self.image)
 
 
 class NewImageQuery(RawImageQuery):
