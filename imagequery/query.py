@@ -11,7 +11,7 @@ except ImportError:
     import ImageEnhance
     import ImageDraw
 from django.conf import settings
-from django.utils.encoding import smart_str
+from django.utils.encoding import smart_unicode
 from django.core.files.base import File, ContentFile
 from django.db.models.fields.files import FieldFile
 from imagequery import operations
@@ -108,7 +108,7 @@ class QueryItem(object):
                 altered = True
                 break
             if item.operation:
-                val.update(smart_str(unicode(item)))
+                val.update(smart_unicode(item).encode('utf-8'))
                 altered = True
             item = item._previous
         if altered:
@@ -134,7 +134,7 @@ class RawImageQuery(object):
     """ Base class for raw handling of images, needs an loaded PIL image """
     def __init__(self, image, source=None, storage=default_storage, cache_storage=None):
         self.image = get_image_object(image, storage)
-        self.source = smart_str(source)
+        self.source = smart_unicode(source)
         self.storage = storage
         if cache_storage is None:
             if default_cache_storage is None:
@@ -279,7 +279,7 @@ class RawImageQuery(object):
         if self.query:
             if name is None:
                 name = self._path()
-            name = smart_str(name)
+            name = smart_unicode(name)
             image = self._create_raw(allow_reopen=False)
             format = self.query.format()
             if image.format:
@@ -478,13 +478,13 @@ class RawImageQuery(object):
     @staticmethod
     def textbox(text, font, size=None):
         font = get_font_object(font, size)
-        text = smart_str(text)
+        text = smart_unicode(text)
         return font.getsize(text)
 
     @staticmethod
     def img_textbox(text, font, size=None):
         font = get_font_object(font, size)
-        text = smart_str(text)
+        text = smart_unicode(text)
         try:
             imgsize, offset = font.font.getsize(text)
             if isinstance(imgsize, int) and isinstance(offset, int):
@@ -504,7 +504,7 @@ class RawImageQuery(object):
     @staticmethod
     def textimg(text, font, size=None, fill=None, padding=0, mode='RGBA', bg=None, storage=default_storage):
         font = get_font_object(font, size)
-        text = smart_str(text)
+        text = smart_unicode(text)
         imgsize, offset = ImageQuery.img_textbox(text, font, size)
         if bg is None:
             bg = [0,0,0,0]
@@ -609,7 +609,7 @@ class ImageQuery(RawImageQuery):
                 self.storage = source.storage
         else:
             # assume that image is a filename
-            self.source = smart_str(source)
+            self.source = smart_unicode(source)
             self.fh = storage.open(self.source, 'rb')
         self.query = QueryItem()
     
