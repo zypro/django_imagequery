@@ -182,8 +182,12 @@ class RawImageQuery(object):
             else:
                 name = self.source
             if format:
-                ext = self._format_extension(format)
-                name = os.path.splitext(name)[0] + ext
+                basename, ext = os.path.splitext(name)
+                format_ext = self._format_extension(format)
+                if ext and ext != format_ext:
+                    name = basename + ext + format_ext
+                else:
+                    name = basename + format_ext
             return os.path.join(CACHE_DIR, hashval, name)
         else:
             return self.source
