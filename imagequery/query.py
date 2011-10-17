@@ -10,7 +10,6 @@ except ImportError:
     import ImageFile
     import ImageEnhance
     import ImageDraw
-from django.conf import settings
 from django.utils.encoding import smart_unicode
 from django.core.files.base import File, ContentFile
 from django.db.models.fields.files import FieldFile
