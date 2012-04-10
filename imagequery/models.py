@@ -1,5 +1,5 @@
 # we need a models.py file to make the django test runner determine the tests
-from imagequery.settings import ALLOW_LAZY_FORMAT, LAZY_FORMAT_CLEANUP_TIME
+from imagequery.settings import ALLOW_LAZY_FORMAT, LAZY_FORMAT_CLEANUP_TIME, AUTOLOAD_FORMATS
 
 if ALLOW_LAZY_FORMAT:
     from django.db import models
@@ -65,4 +65,7 @@ if ALLOW_LAZY_FORMAT:
             format = formats.get(self.format)
             return format(self.query).url()
 
+
+if AUTOLOAD_FORMATS:
+    import imagequery.autoload
 
