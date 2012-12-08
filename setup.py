@@ -3,9 +3,9 @@ from setuptools import setup, find_packages
 
 setup(
     name = "django-imagequery",
-    version = "0.1-dev",
+    version = "0.2.0",
     author_email = "david.danier@team23.de",
-    url = "http://bitbucket.org/ddanier/django-imagequery",
+    url = "https://github.com/ddanier/django_imagequery",
     
     packages = find_packages(exclude=[
         'example',
