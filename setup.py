@@ -4,6 +4,7 @@ from setuptools import setup, find_packages
 setup(
     name = "django-imagequery",
     version = "0.2.0",
+    author = 'David Danier',
     author_email = "david.danier@team23.de",
     url = "https://github.com/ddanier/django_imagequery",
     
