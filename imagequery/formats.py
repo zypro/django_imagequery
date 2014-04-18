@@ -1,10 +1,13 @@
 class FormatDoesNotExist(Exception):
     pass
 
+
 _formats = {}
+
 
 def register(name, format):
     _formats[name] = format
+
 
 def get(name):
     try:
@@ -45,38 +48,38 @@ class Format(object):
     Format's mainly provide some methods to be used in your code, like returning
     the URL/path of the generated image.
     """
-    
+
     # we don't allow passing filenames here, as this would need us to
     # repeat big parts of the storage-logic
     def __init__(self, imagequery):
         self._query = imagequery
-    
+
     def execute(self, query):
         ''' needs to be filled by derivates '''
         return query
-    
+
     def _execute(self):
         try:
             return self._executed
         except AttributeError:
             self._executed = self.execute(self._query)
             return self._executed
-    
+
     def name(self):
         """ like Imagequery: return the name of the associated file """
         return self._execute().name()
-    
+
     def path(self):
         """ like Imagequery: return the full path of the associated file """
         return self._execute().path()
-    
+
     def url(self):
         """ like Imagequery: return the URL of the associated file """
         return self._execute().url()
-    
+
     def height(self):
         return self._execute().height()
-    
+
     def width(self):
         return self._execute().width()
 

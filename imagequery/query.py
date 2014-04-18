@@ -1,5 +1,6 @@
 import os
 import weakref
+
 try:
     from PIL import Image
     from PIL import ImageFile
@@ -14,7 +15,7 @@ from django.utils.encoding import smart_unicode
 from django.core.files.base import File, ContentFile
 from django.db.models.fields.files import FieldFile
 from imagequery import operations
-from imagequery.settings import CACHE_DIR, DEFAULT_OPTIONS, default_storage,\
+from imagequery.settings import CACHE_DIR, DEFAULT_OPTIONS, default_storage, \
     default_cache_storage
 from imagequery.utils import get_image_object, get_font_object, get_coords
 
@@ -22,8 +23,11 @@ from imagequery.utils import get_image_object, get_font_object, get_coords
 # keys are hashes of image operations
 _IMAGE_REGISTRY = weakref.WeakKeyDictionary()
 
+
 def _set_image_registry(item, image):
     _IMAGE_REGISTRY[item] = image
+
+
 def _get_image_registry(item):
     return _IMAGE_REGISTRY.get(item, None)
 
@@ -34,7 +38,7 @@ class QueryItem(object):
     
     Each QueryItem might have an associated Operation (like rescaling the image)
     """
-    
+
     def __init__(self, operation=None):
         self._previous = None
         self._evaluated_image = None
@@ -44,12 +48,14 @@ class QueryItem(object):
 
     def _get_previous(self):
         return self._previous
+
     def _set_previous(self, athor):
         prev = self._previous
         athor._previous = prev
         self._previous = athor
+
     previous = property(_get_previous, _set_previous)
-    
+
     def __iter__(self):
         items = [self]
         item = self._previous
@@ -57,10 +63,10 @@ class QueryItem(object):
             items.append(item)
             item = item._previous
         return reversed(items)
-    
+
     def __unicode__(self):
         return u', '.join([unicode(x.operation) for x in self])
-    
+
     def execute(self, image):
         evaluated_image = _get_image_registry(self)
         if evaluated_image is None:
@@ -71,7 +77,7 @@ class QueryItem(object):
             evaluated_image = image
             _set_image_registry(self, evaluated_image)
         return evaluated_image
-    
+
     def get_attrs(self):
         attrs = {}
         if self._previous is not None:
@@ -79,7 +85,7 @@ class QueryItem(object):
         if self.operation is not None:
             attrs.update(self.operation.attrs)
         return attrs
-    
+
     def format(self, value=None):
         if value:
             self._format = value
@@ -90,9 +96,10 @@ class QueryItem(object):
                 return item._format
             item = item._previous
         return None
-    
+
     def name(self, value=None):
         import hashlib
+
         if value:
             self._name = value
             return value
@@ -102,7 +109,7 @@ class QueryItem(object):
         altered = False
         item = self
         while item:
-            if item._name: # stop on first named operation
+            if item._name:  # stop on first named operation
                 val.update(item._name)
                 altered = True
                 break
@@ -114,13 +121,13 @@ class QueryItem(object):
             return val.hexdigest()
         else:
             return None
-    
+
     def get_first(self):
         first = self
         while first._previous is not None:
             first = first._previous
         return first
-    
+
     def has_operations(self):
         if self.operation:
             return True
@@ -131,6 +138,7 @@ class QueryItem(object):
 
 class RawImageQuery(object):
     """ Base class for raw handling of images, needs an loaded PIL image """
+
     def __init__(self, image, source=None, storage=default_storage, cache_storage=None):
         self.image = get_image_object(image, storage)
         self.source = smart_unicode(source)
@@ -142,17 +150,18 @@ class RawImageQuery(object):
                 cache_storage = default_cache_storage
         self.cache_storage = cache_storage
         self.query = QueryItem()
-    
+
     def _basename(self):
         if self.source:
             return os.path.basename(self.source)
         else:
             # the image was not loaded from source. create some name
             import hashlib
+
             md5 = hashlib.md5()
             md5.update(self.image.tostring())
             return '%s.png' % md5.hexdigest()
-    
+
     def _format_extension(self, format):
         try:
             return self._reverse_extensions.get(format, '')
@@ -169,7 +178,7 @@ class RawImageQuery(object):
                 'TIFF': '.tiff',
             })
             return self._reverse_extensions.get(format, '')
-    
+
     def _name(self):
         if self.query.has_operations():
             hashval = self.query.name()
@@ -207,19 +216,19 @@ class RawImageQuery(object):
 
     def _exists(self):
         if self.source and \
-            self.cache_storage.exists(self._name()):
-                # TODO: Really support local paths this way?
-                try:
-                    source_path = self.storage.path(self.source)
-                    cache_path = self._path()
-                    if os.path.exists(source_path) and \
+                self.cache_storage.exists(self._name()):
+            # TODO: Really support local paths this way?
+            try:
+                source_path = self.storage.path(self.source)
+                cache_path = self._path()
+                if os.path.exists(source_path) and \
                         os.path.exists(cache_path) and \
-                        os.path.getmtime(source_path) > \
-                        os.path.getmtime(cache_path):
-                            return False
-                except NotImplementedError:
-                    pass
-                return True
+                                os.path.getmtime(source_path) > \
+                                os.path.getmtime(cache_path):
+                    return False
+            except NotImplementedError:
+                pass
+            return True
         return False
 
     def _apply_operations(self, image):
@@ -227,10 +236,10 @@ class RawImageQuery(object):
         return image
 
     def _create_raw(self, allow_reopen=True):
-        if allow_reopen and self._exists(): # Load existing image if possible
+        if allow_reopen and self._exists():  # Load existing image if possible
             return Image.open(self.cache_storage.open(self._name(), 'rb'))
         return self._apply_operations(self.image)
-    
+
     def _convert_image_mode(self, image, format):
         # TODO: Run this again with all available modes
         # TODO: Find out how to get all available modes ;-)
@@ -252,11 +261,8 @@ class RawImageQuery(object):
         MODES = {
             'JPEG': ('RGBA', 'RGB', 'CMYK', '1'),
             'PCX': ('RGB', 'P', '1'),
-            'EPS': ('RGB', 'CMYK'),
-            'TIFF': ('RGBA', 'RGB', 'CMYK', 'P', '1'),
             'GIF': ('RGBA', 'RGB', 'CMYK', 'P', '1'),
             'PALM': ('P', '1'),
-            'PPM': ('RGBA', 'RGB', '1'),
             'EPS': ('RGB', 'CMYK'),
             'BMP': ('RGB', 'P', '1'),
             'PPM': ('RGBA', 'RGB', '1'),
@@ -274,7 +280,7 @@ class RawImageQuery(object):
                 # features
                 image = image.convert(MODES[format][0])
         return image
-    
+
     def _create(self, name=None, **options):
         '''
         Recreate image. Does not check whether the image already exists.
@@ -311,10 +317,10 @@ class RawImageQuery(object):
     def _clone(self):
         import copy
         # clone = RawImageQuery(
-            # self.image,
-            # self.source,
-            # self.storage,
-            # self.cache_storage,
+        # self.image,
+        # self.source,
+        # self.storage,
+        # self.cache_storage,
         # )
         clone = copy.copy(self)
         clone.query = copy.copy(self.query)
@@ -323,7 +329,7 @@ class RawImageQuery(object):
     def _evaluate(self):
         if not self._exists():
             self._create()
-    
+
     def _append(self, operation):
         query = QueryItem(operation)
         query._previous = self.query
@@ -345,8 +351,8 @@ class RawImageQuery(object):
         q = q._append(op)
         return q
 
-    def blank(self,x=None,y=None,color=None):
-        return self.append(operations.Blank(x,y,color))
+    def blank(self, x=None, y=None, color=None):
+        return self.append(operations.Blank(x, y, color))
 
     def paste(self, image, x=0, y=0, storage=None):
         '''
@@ -354,7 +360,7 @@ class RawImageQuery(object):
         '''
         if storage is None:
             storage = self.storage
-        return self.append(operations.Paste(image,x,y,storage))
+        return self.append(operations.Paste(image, x, y, storage))
 
     def background(self, image, x=0, y=0, storage=None):
         '''
@@ -362,24 +368,24 @@ class RawImageQuery(object):
         '''
         if storage is None:
             storage = self.storage
-        return self.append(operations.Background(image,x,y,storage))
+        return self.append(operations.Background(image, x, y, storage))
 
     def blend(self, image, alpha=0.5, storage=None):
         if storage is None:
             storage = self.storage
-        return self.append(operations.Blend(image,alpha,storage))
+        return self.append(operations.Blend(image, alpha, storage))
 
     def resize(self, x=None, y=None, filter=Image.ANTIALIAS):
-        return self.append(operations.Resize(x,y,filter))
+        return self.append(operations.Resize(x, y, filter))
 
     def scale(self, x, y, filter=Image.ANTIALIAS):
-        return self.append(operations.Scale(x,y,filter))
+        return self.append(operations.Scale(x, y, filter))
 
     def crop(self, x, y, w, h):
-        return self.append(operations.Crop(x,y,w,h))
+        return self.append(operations.Crop(x, y, w, h))
 
-    def fit(self, x, y, centering=(0.5,0.5), method=Image.ANTIALIAS):
-        return self.append(operations.Fit(x,y,centering,method))
+    def fit(self, x, y, centering=(0.5, 0.5), method=Image.ANTIALIAS):
+        return self.append(operations.Fit(x, y, centering, method))
 
     def enhance(self, enhancer, factor):
         return self.append(operations.Enhance(enhancer, factor))
@@ -399,7 +405,7 @@ class RawImageQuery(object):
 
     def filter(self, image_filter):
         return self.append(operations.Filter(image_filter))
-    
+
     def truecolor(self):
         return self.append(operations.Convert('RGBA'))
 
@@ -497,12 +503,12 @@ class RawImageQuery(object):
             imgsize = font.getsize(text)
             offset = (0, 0)
         return (
-            imgsize[0] - offset[0],
-            imgsize[1] - offset[1],
-        ), (
-            -offset[0],
-            -offset[1],
-        )
+                   imgsize[0] - offset[0],
+                   imgsize[1] - offset[1],
+               ), (
+                   -offset[0],
+                   -offset[1],
+               )
 
     @staticmethod
     def textimg(text, font, size=None, fill=None, padding=0, mode='RGBA', bg=None, storage=default_storage):
@@ -510,7 +516,7 @@ class RawImageQuery(object):
         text = smart_unicode(text)
         imgsize, offset = ImageQuery.img_textbox(text, font, size)
         if bg is None:
-            bg = [0,0,0,0]
+            bg = [0, 0, 0, 0]
             # Workaround: Image perhaps is converted to RGB before pasting,
             # black background draws dark outline around text
             if fill:
@@ -523,9 +529,9 @@ class RawImageQuery(object):
         draw = ImageDraw.Draw(fontimage)
         draw.text(offset, text, font=font, fill=fill)
         return RawImageQuery(fontimage, storage=storage)
-    
+
     # methods which does not return a new ImageQuery instance
-    
+
     def mimetype(self):
         format = self.raw().format
         try:
@@ -537,10 +543,12 @@ class RawImageQuery(object):
 
     def width(self):
         return self.raw().size[0]
+
     x = width
 
     def height(self):
         return self.raw().size[1]
+
     y = height
 
     def size(self):
@@ -564,8 +572,8 @@ class RawImageQuery(object):
 
 class NewImageQuery(RawImageQuery):
     """ Creates an new (blank) image for you """
-    
-    def __init__(self, x, y, color=(0,0,0,0), storage=default_storage, cache_storage=None):
+
+    def __init__(self, x, y, color=(0, 0, 0, 0), storage=default_storage, cache_storage=None):
         image = Image.new('RGBA', (x, y), color)
         super(NewImageQuery, self).__init__(image, storage=storage, cache_storage=cache_storage)
 
@@ -592,7 +600,7 @@ class ImageQuery(RawImageQuery):
     example - put all your cached images on an different server while keeping
     the original files locally.
     """
-    
+
     def __init__(self, source, storage=default_storage, cache_storage=None):
         query = None
         self.storage = storage
@@ -615,15 +623,17 @@ class ImageQuery(RawImageQuery):
             self.source = smart_unicode(source)
             self.fh = storage.open(self.source, 'rb')
         self.query = QueryItem()
-    
+
     def _get_image(self):
         try:
             return self._image
         except AttributeError:
-            self.fh.open('rb') # reset file access
+            self.fh.open('rb')  # reset file access
             self._image = Image.open(self.fh)
             return self._image
+
     def _set_image(self, image):
         self._image = image
+
     image = property(_get_image, _set_image)
 

@@ -1,5 +1,5 @@
 from django.conf import settings
-from django.core.files.storage import default_storage as _default_storage,\
+from django.core.files.storage import default_storage as _default_storage, \
     get_storage_class
 
 CACHE_DIR = getattr(settings, 'IMAGEQUERY_CACHE_DIR', 'cache')
@@ -22,7 +22,7 @@ else:
 
 ALLOW_LAZY_FORMAT = getattr(settings, 'IMAGEQUERY_ALLOW_LAZY_FORMAT', False)
 LAZY_FORMAT_DEFAULT = getattr(settings, 'IMAGEQUERY_LAZY_FORMAT_DEFAULT', False)
-LAZY_FORMAT_CLEANUP_TIME = getattr(settings, 'IMAGEQUERY_LAZY_FORMAT_CLEANUP_TIME', 86400) # one day
+LAZY_FORMAT_CLEANUP_TIME = getattr(settings, 'IMAGEQUERY_LAZY_FORMAT_CLEANUP_TIME', 86400)  # one day
 
 AUTOLOAD_FORMATS = getattr(settings, 'IMAGEQUERY_AUTOLOAD_FORMATS', False)
 

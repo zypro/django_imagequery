@@ -1,6 +1,7 @@
 from django.http import HttpResponseRedirect, Http404
 from django.core.exceptions import ImproperlyConfigured
 
+
 def generate_lazy(request, pk):
     try:
         from imagequery.models import LazyFormat

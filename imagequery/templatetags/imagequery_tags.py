@@ -7,6 +7,7 @@ from imagequery.settings import ALLOW_LAZY_FORMAT, LAZY_FORMAT_DEFAULT
 
 register = template.Library()
 
+
 def parse_value(value):
     try:
         if int(value) == float(value):
@@ -15,6 +16,7 @@ def parse_value(value):
             return float(value)
     except (TypeError, ValueError):
         return value
+
 
 def parse_attrs(attrs):
     args, kwargs = [], {}
@@ -26,6 +28,7 @@ def parse_attrs(attrs):
             except ValueError:
                 args.append(parse_value(attr))
     return args, kwargs
+
 
 def imagequerify(func):
     from functools import wraps
@@ -39,18 +42,25 @@ def imagequerify(func):
         except IOError:
             return ''
         return func(image, attr)
+
     return newfunc
+
 
 def imagequerify_filter(value):
     return get_imagequery(value)
+
+
 register.filter('imagequerify', imagequerify_filter)
+
 
 def imagequery_filter(method_name, filter_name=None):
     if not filter_name:
         filter_name = method_name
+
     def filter(image, attr=None):
         args, kwargs = parse_attrs(attr)
         return getattr(image, method_name)(*args, **kwargs)
+
     filter = imagequerify(filter)
     filter = register.filter(filter_name, filter)
     return filter
@@ -104,11 +114,12 @@ class ImageFormatNode(template.Node):
             return ''
         try:
             imagequery = get_imagequery(image)
-        except IOError: # handle missing files
+        except IOError:  # handle missing files
             return ''
         format = format_cls(imagequery)
         if self.allow_lazy and not self.name and not format._execute()._exists():
             from imagequery.models import LazyFormat
+
             lazy_format = LazyFormat(format=formatname)
             lazy_format.query = imagequery
             lazy_format.save()

@@ -1,5 +1,6 @@
 from django.utils.encoding import smart_unicode
 import os
+
 try:
     from PIL import Image
     from PIL import ImageChops
@@ -19,7 +20,7 @@ class Operation(object):
     """
     Image Operation, like scaling
     """
-    
+
     args = ()
     args_defaults = {}
     attrs = {}
@@ -55,6 +56,7 @@ class DummyOperation(Operation):
 class CommandOperation(Operation):
     def file_operation(self, image, query, command):
         import tempfile, subprocess
+
         suffix = '.%s' % os.path.basename(query.source).split('.', -1)[1]
         whfile, wfile = tempfile.mkstemp(suffix)
         image.save(wfile)
@@ -109,6 +111,7 @@ class Scale(Operation):
 
 class Invert(Operation):
     args = ('keep_alpha',)
+
     def execute(self, image, query):
         if self.keep_alpha:
             image = image.convert('RGBA')
@@ -137,6 +140,7 @@ class Mirror(Operation):
 
 class Blur(Operation):
     args = ('amount',)
+
     def execute(self, image, query):
         for i in xrange(0, self.amount):
             image = image.filter(ImageFilter.BLUR)
@@ -145,12 +149,14 @@ class Blur(Operation):
 
 class Filter(Operation):
     args = ('filter',)
+
     def execute(self, image, query):
         return image.filter(self.filter)
 
 
 class Crop(Operation):
     args = ('x', 'y', 'w', 'h')
+
     def execute(self, image, query):
         box = (
             self.x,
@@ -167,18 +173,20 @@ class Fit(Operation):
         'method': Image.ANTIALIAS,
         'centering': (0.5, 0.5),
     }
+
     def execute(self, image, query):
         return ImageOps.fit(image, (self.x, self.y), self.method, centering=self.centering)
 
 
 class Blank(Operation):
-    args = ('x','y','color','mode')
+    args = ('x', 'y', 'color', 'mode')
     args_defaults = {
         'x': None,
         'y': None,
         'color': None,
         'mode': 'RGBA',
     }
+
     def execute(self, image, query):
         x, y = self.x, self.y
         if x is None:
@@ -192,7 +200,8 @@ class Blank(Operation):
 
 
 class Paste(Operation):
-    args = ('image','x','y','storage')
+    args = ('image', 'x', 'y', 'storage')
+
     def execute(self, image, query):
         athor = get_image_object(self.image, self.storage)
         x2, y2 = athor.size
@@ -229,11 +238,12 @@ class Paste(Operation):
 
 
 class Background(Operation):
-    args = ('image','x','y','storage')
+    args = ('image', 'x', 'y', 'storage')
+
     def execute(self, image, query):
-        background = Image.new('RGBA', image.size, color=(0,0,0,0))
+        background = Image.new('RGBA', image.size, color=(0, 0, 0, 0))
         athor = get_image_object(self.image, self.storage)
-        x2,y2 = image.size
+        x2, y2 = image.size
         x1 = get_coords(image.size[0], athor.size[0], self.x)
         y1 = get_coords(image.size[1], athor.size[1], self.y)
         box = (
@@ -252,6 +262,7 @@ class Convert(Operation):
     args_defaults = {
         'matrix': None,
     }
+
     def execute(self, image, query):
         if self.matrix:
             return image.convert(self.mode, self.matrix)
@@ -267,6 +278,7 @@ class GetChannel(Operation):
         'blue': 2,
         'alpha': 3,
     }
+
     def execute(self, image, query):
         image = image.convert('RGBA')
         alpha = image.split()[self.channel_map[self.channel]]
@@ -275,6 +287,7 @@ class GetChannel(Operation):
 
 class ApplyAlpha(GetChannel):
     args = ('alphamap',)
+
     def execute(self, image, query):
         # TODO: Use putalpha(band)?
         image = image.convert('RGBA')
@@ -286,23 +299,26 @@ class ApplyAlpha(GetChannel):
 
 
 class Blend(Operation):
-    args = ('image','alpha','storage')
+    args = ('image', 'alpha', 'storage')
     channel_map = {
         'alpha': 0.5,
     }
+
     def execute(self, image, query):
         athor = get_image_object(self.image, self.storage)
         return Image.blend(image, athor, self.alpha)
 
 
 class Text(Operation):
-    args = ('text','x','y','font','size','fill')
+    args = ('text', 'x', 'y', 'font', 'size', 'fill')
     args_defaults = {
         'size': None,
         'fill': None,
     }
+
     def execute(self, image, query):
-        from imagequery import ImageQuery # late import to avoid circular import
+        from imagequery import ImageQuery  # late import to avoid circular import
+
         image = image.copy()
         font = get_font_object(self.font, self.size)
         size, offset = ImageQuery.img_textbox(self.text, self.font, self.size)
@@ -322,6 +338,7 @@ class TextImage(Operation):
         'size': None,
         'fill': None,
     }
+
     def execute(self, image, query):
         font = get_font_object(self.font, self.size)
         font.getmask(self.text)
@@ -340,7 +357,8 @@ class FontDefaults(Operation):
 
 
 class Composite(Operation):
-    args = ('image','mask','storage')
+    args = ('image', 'mask', 'storage')
+
     def execute(self, image, query):
         athor = get_image_object(self.image, self.storage)
         mask = get_image_object(self.mask, self.storage)
@@ -348,13 +366,15 @@ class Composite(Operation):
 
 
 class Offset(Operation):
-    args = ('x','y')
+    args = ('x', 'y')
+
     def execute(self, image, query):
         return ImageChops.offset(image, self.x, self.y)
 
 
 class Padding(Operation):
-    args = ('left','top','right','bottom','color')
+    args = ('left', 'top', 'right', 'bottom', 'color')
+
     def execute(self, image, query):
         left, top, right, bottom = self.left, self.top, self.right, self.bottom
         color = self.color
@@ -365,7 +385,7 @@ class Padding(Operation):
         if bottom is None:
             bottom = top
         if color is None:
-            color = (0,0,0,0)
+            color = (0, 0, 0, 0)
         new_width = left + right + image.size[0]
         new_height = top + bottom + image.size[1]
         new = Image.new('RGBA', (new_width, new_height), color=color)
@@ -375,21 +395,23 @@ class Padding(Operation):
 
 class Opacity(Operation):
     args = ('opacity',)
+
     def execute(self, image, query):
         opacity = int(self.opacity * 255)
-        background = Image.new('RGBA', image.size, color=(0,0,0,0))
-        mask = Image.new('RGBA', image.size, color=(0,0,0,opacity))
-        box = (0,0) + image.size
+        background = Image.new('RGBA', image.size, color=(0, 0, 0, 0))
+        mask = Image.new('RGBA', image.size, color=(0, 0, 0, opacity))
+        box = (0, 0) + image.size
         background.paste(image, box, mask)
         return background
 
 
 class Clip(Operation):
-    args = ('start','end',)
+    args = ('start', 'end',)
     args_defaults = {
         'start': None,
         'end': None,
     }
+
     def execute(self, image, query):
         start = self.start
         if start is None:
@@ -398,6 +420,6 @@ class Clip(Operation):
         if end is None:
             end = image.size
         new = image.crop(self.start + self.end)
-        new.load() # crop is a lazy operation, see docs
+        new.load()  # crop is a lazy operation, see docs
         return new
 

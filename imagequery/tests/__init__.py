@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import shutil
+
 try:
     from PIL import Image
 except ImportError:
@@ -29,6 +30,7 @@ class TestFormat(formats.Format):
 class ImageQueryTest(TestCase):
     def setUp(self):
         import tempfile
+
         self.tmp_dir = os.path.join(settings.MEDIA_ROOT, 'test', 'imagequery')
         self.sample_dir = os.path.join(self.tmp_dir, 'sampleimages')
         self.font_dir = os.path.join(os.path.dirname(__file__), 'samplefonts')
@@ -46,13 +48,16 @@ class ImageQueryTest(TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmp_dir)
         formats._formats = self.registered_formats
-    
+
     def sample(self, path):
         return os.path.join(self.sample_dir, path)
+
     def tmp(self, path):
         return os.path.join(self.tmp_dir, path)
+
     def compare(self, im1, im2):
         import hashlib
+
         f1hash = hashlib.md5()
         f1hash.update(Image.open(im1).tostring())
         f2hash = hashlib.md5()
@@ -70,7 +75,7 @@ class ImageQueryTest(TestCase):
         self.assert_(self.compare(self.tmp('test.jpg'), self.sample('results/django_colors_gray.jpg')))
 
     def test_load_blank_image(self):
-        blank = NewImageQuery(x=100,y=100,color=(250,200,150,100))
+        blank = NewImageQuery(x=100, y=100, color=(250, 200, 150, 100))
         blank.save(self.tmp('test.png'))
         self.assert_(self.compare(self.tmp('test.png'), self.sample('results/blank_100x100_250,200,150,100.png')))
 
@@ -85,16 +90,19 @@ class ImageQueryTest(TestCase):
         shutil.copyfile(self.sample('django_colors.jpg'), os.path.join(self.tmpstorage_dir, 'customstorage.jpg'))
         # load from custom tmp storage
         iq = ImageQuery('customstorage.jpg', storage=self.tmpstorage)
-        
+
         iq.grayscale().save('save.jpg')
-        self.assert_(self.compare(os.path.join(self.tmpstorage_dir, 'save.jpg'), self.sample('results/django_colors_gray.jpg')))
-        
+        self.assert_(
+            self.compare(os.path.join(self.tmpstorage_dir, 'save.jpg'), self.sample('results/django_colors_gray.jpg')))
+
         iq.grayscale().save('save.jpg', storage=self.tmpstorage_save)
-        self.assert_(self.compare(os.path.join(self.tmpstorage_save_dir, 'save.jpg'), self.sample('results/django_colors_gray.jpg')))
-        
+        self.assert_(self.compare(os.path.join(self.tmpstorage_save_dir, 'save.jpg'),
+                                  self.sample('results/django_colors_gray.jpg')))
+
         iq = ImageQuery('customstorage.jpg', storage=self.tmpstorage, cache_storage=self.tmpstorage_save)
         iq.grayscale().save('save.jpg')
-        self.assert_(self.compare(os.path.join(self.tmpstorage_save_dir, 'save.jpg'), self.sample('results/django_colors_gray.jpg')))
+        self.assert_(self.compare(os.path.join(self.tmpstorage_save_dir, 'save.jpg'),
+                                  self.sample('results/django_colors_gray.jpg')))
 
     def test_operations(self):
         dj = ImageQuery(self.sample('django_colors.jpg'))
@@ -105,12 +113,14 @@ class ImageQueryTest(TestCase):
         self.assert_(self.compare(self.tmp('test.jpg'), self.sample('results/django_colors_gray.jpg')))
 
         dj.paste(tux, 'center', 'bottom').save(self.tmp('test.jpg'))
-        self.assert_(self.compare(self.tmp('test.jpg'), self.sample('results/django_colors_with_tux_center_bottom.jpg')))
+        self.assert_(
+            self.compare(self.tmp('test.jpg'), self.sample('results/django_colors_with_tux_center_bottom.jpg')))
 
-        lynx.mirror().flip().invert().resize(400,300).save(self.tmp('test.jpg'))
-        self.assert_(self.compare(self.tmp('test.jpg'), self.sample('results/lynx_kitten_mirror_flip_invert_resize_400_300.jpg')))
+        lynx.mirror().flip().invert().resize(400, 300).save(self.tmp('test.jpg'))
+        self.assert_(self.compare(self.tmp('test.jpg'),
+                                  self.sample('results/lynx_kitten_mirror_flip_invert_resize_400_300.jpg')))
 
-        lynx.fit(400,160).save(self.tmp('test.jpg'))
+        lynx.fit(400, 160).save(self.tmp('test.jpg'))
         self.assert_(self.compare(self.tmp('test.jpg'), self.sample('results/lynx_fit_400_160.jpg')))
 
         tux_blank = tux.blank(color='#000088').save(self.tmp('test.png'))
@@ -125,7 +135,8 @@ class ImageQueryTest(TestCase):
         self.assert_(self.compare(self.tmp('test3.jpg'), self.sample('results/lynx_resize_400_sharpness_-1.jpg')))
         self.assert_(not self.compare(self.tmp('test.jpg'), self.tmp('test2.jpg')))
 
-        dj.text('Django ImageQuery', 'center', 10, os.path.join(self.font_dir, 'Vera.ttf'), 20, '#000000').save(self.tmp('test.jpg'))
+        dj.text('Django ImageQuery', 'center', 10, os.path.join(self.font_dir, 'Vera.ttf'), 20, '#000000').save(
+            self.tmp('test.jpg'))
         self.assert_(self.compare(self.tmp('test.jpg'), self.sample('results/django_colors_text_center_10.jpg')))
 
         self.assertEqual(dj.mimetype(), 'image/jpeg')
@@ -133,22 +144,23 @@ class ImageQueryTest(TestCase):
 
     def test_hash_calculation(self):
         dj = ImageQuery(self.sample('django_colors.jpg'))
-        dj1 = dj.scale(100,100)
+        dj1 = dj.scale(100, 100)
         self.assertNotEqual(dj1._name(), dj._name())
-        dj2 = ImageQuery(self.sample('django_colors.jpg')).scale(100,100)
+        dj2 = ImageQuery(self.sample('django_colors.jpg')).scale(100, 100)
 
         self.assertEqual(dj1._name(), dj2._name())
         self.assertNotEqual(dj._name(), dj2._name())
-        dj3 = dj.scale(101,101)
+        dj3 = dj.scale(101, 101)
         self.assertNotEqual(dj1._name(), dj3._name())
-    
+
     def test_format(self):
         iq = ImageQuery(self.sample('django_colors.jpg'))
         f = TestFormat(iq)
         self.assert_(self.compare(f.path(), self.sample('results/django_colors_gray.jpg')))
-    
+
     def test_template_format(self):
         from django import template
+
         tpl = template.Template('{% load imagequery_tags %}{% image_format "test" image %}')
         ctx = template.Context({
             'image': ImageQuery(self.sample('django_colors.jpg')),
