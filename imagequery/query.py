@@ -298,7 +298,7 @@ class RawImageQuery(object):
             if not format:
                 if not Image.EXTENSION:
                     Image.init()
-                format = Image.EXTENSION[os.path.splitext(name)[1]]
+                format = Image.EXTENSION[os.path.splitext(name)[1].lower()]
             if not self.cache_storage.exists(name):
                 self.cache_storage.save(name, ContentFile(''))
             if DEFAULT_OPTIONS:
