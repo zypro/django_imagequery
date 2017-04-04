@@ -1,4 +1,4 @@
-from django.utils.encoding import smart_unicode
+from django.utils.encoding import smart_text
 import os
 
 try:
@@ -325,7 +325,7 @@ class Text(Operation):
         x = get_coords(image.size[0], size[0], self.x) + offset[0]
         y = get_coords(image.size[1], size[1], self.y) + offset[1]
         draw = ImageDraw.Draw(image)
-        text = smart_unicode(self.text)
+        text = smart_text(self.text)
         draw.text((x, y), text, font=font, fill=self.fill)
         return image
 
